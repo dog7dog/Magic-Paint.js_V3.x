@@ -1,1 +1,19 @@
+# ===== macOS =====
 .DS_Store
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ===== Virtual Environment =====
+.venv/
+venv/
+env/
+
+# ===== Claude =====
+.claude/
+
+# ===== Logs =====
+*.log
