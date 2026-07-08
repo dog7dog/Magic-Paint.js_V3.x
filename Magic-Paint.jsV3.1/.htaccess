@@ -1,0 +1,9 @@
+Options +ExecCGI
+AddHandler cgi-script .cgi
+
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+RewriteRule ^(api|projects)(/.*)? index.cgi/$1$2 [QSA,L]
