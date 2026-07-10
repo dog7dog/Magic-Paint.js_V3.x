@@ -18,11 +18,11 @@ const AIClient = {
 
   // ── キー ──
   async listKeys() {
-    const res = await fetch('/api/ai/keys');
+    const res = await fetch('api/ai/keys');
     return this._json(res, 'キー一覧の取得に失敗');
   },
   async saveKey(provider, apiKey, model) {
-    const res = await fetch('/api/ai/keys', {
+    const res = await fetch('api/ai/keys', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, api_key: apiKey, model: model || null })
     });
@@ -40,7 +40,7 @@ const AIClient = {
     return this._json(res, 'キーの削除に失敗');
   },
   async testConnection(provider, model) {
-    const res = await fetch('/api/ai/test', {
+    const res = await fetch('api/ai/test', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, model: model || null })
     });
@@ -52,7 +52,7 @@ const AIClient = {
   // opts: { model, temperature, conversationId, save }
   async chat(provider, messages, opts) {
     opts = opts || {};
-    const res = await fetch('/api/ai', {
+    const res = await fetch('api/ai', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider, messages,
@@ -67,7 +67,7 @@ const AIClient = {
 
   // ── 会話履歴 ──
   async listConversations() {
-    const res = await fetch('/api/ai/conversations');
+    const res = await fetch('api/ai/conversations');
     return this._json(res, '会話一覧の取得に失敗');
   },
   async getConversation(id) {
@@ -88,7 +88,7 @@ const AIClient = {
 
   // ── 統計 ──
   async stats() {
-    const res = await fetch('/api/ai/stats');
+    const res = await fetch('api/ai/stats');
     return this._json(res, '統計の取得に失敗');
   },
 
