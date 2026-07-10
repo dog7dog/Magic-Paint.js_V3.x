@@ -58,7 +58,7 @@ function initGroupAndFpsControls() {
     if (!mod) return;
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
 
-    if (e.key.toLowerCase() === '|') {
+    if (e.key.toLowerCase() === '*') {
       e.preventDefault();
       groupSelectedShapes();
     }
