@@ -31,14 +31,14 @@ function mpCommands() {
     { icon: 'ti-layout-align-center', name: '下揃え', keys: '', run: call('mpAlign', 'bottom') },
     { icon: 'ti-layout-align-middle', name: '水平中央揃え', keys: '', run: call('mpAlign', 'cx') },
     { icon: 'ti-layout-align-middle', name: '垂直中央揃え', keys: '', run: call('mpAlign', 'cy') },
-    { icon: 'ti-grid-4x4', name: 'グリッド表示切替', keys: 'G', run: call('mpToggleGrid') },
+    { icon: 'ti-grid-4x4', name: 'グリッド表示切替', keys: '⌘G', run: call('mpToggleGrid') },
     { icon: 'ti-magnet', name: 'スナップ切替', keys: '', run: call('mpToggleSnap') },
     { icon: 'ti-ghost', name: 'オニオンスキン切替', keys: '', run: call('mpToggleOnion') },
     { icon: 'ti-zoom-in', name: 'ズームイン', keys: '⌘+', run: call('mpZoomIn') },
     { icon: 'ti-zoom-out', name: 'ズームアウト', keys: '⌘-', run: call('mpZoomOut') },
     { icon: 'ti-zoom-reset', name: 'ズームをリセット', keys: '⌘0', run: call('mpZoomReset') },
     { icon: 'ti-keyboard', name: 'ショートカット一覧', keys: '?', run: call('mpShowShortcuts') },
-    { icon: 'ti-color-picker', name: 'スポイト（色を吸い取る）', keys: 'I', run: call('mpStartEyedropper') },
+    { icon: 'ti-color-picker', name: 'スポイト（色を吸い取る）', keys: '⌘I', run: call('mpStartEyedropper') },
     { icon: 'ti-palette', name: 'パレットに現在色を追加', keys: '', run: call('mpAddSwatch') },
   ];
 }
