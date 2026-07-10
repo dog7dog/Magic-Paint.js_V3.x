@@ -29,14 +29,14 @@ const AIClient = {
     return this._json(res, 'キーの保存に失敗');
   },
   async saveModel(provider, model) {
-    const res = await fetch(`/api/ai/keys/${encodeURIComponent(provider)}/model`, {
+    const res = await fetch(`api/ai/keys/${encodeURIComponent(provider)}/model`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model })
     });
     return this._json(res, 'モデルの保存に失敗');
   },
   async deleteKey(provider) {
-    const res = await fetch(`/api/ai/keys/${encodeURIComponent(provider)}`, { method: 'DELETE' });
+    const res = await fetch(`api/ai/keys/${encodeURIComponent(provider)}`, { method: 'DELETE' });
     return this._json(res, 'キーの削除に失敗');
   },
   async testConnection(provider, model) {
@@ -71,18 +71,18 @@ const AIClient = {
     return this._json(res, '会話一覧の取得に失敗');
   },
   async getConversation(id) {
-    const res = await fetch(`/api/ai/conversations/${id}`);
+    const res = await fetch(`api/ai/conversations/${id}`);
     return this._json(res, '会話の取得に失敗');
   },
   async renameConversation(id, title) {
-    const res = await fetch(`/api/ai/conversations/${id}`, {
+    const res = await fetch(`api/ai/conversations/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title })
     });
     return this._json(res, 'リネームに失敗');
   },
   async deleteConversation(id) {
-    const res = await fetch(`/api/ai/conversations/${id}`, { method: 'DELETE' });
+    const res = await fetch(`api/ai/conversations/${id}`, { method: 'DELETE' });
     return this._json(res, '削除に失敗');
   },
 
@@ -94,7 +94,7 @@ const AIClient = {
 
   // ── MODインストール ──
   async installMod(mod) {
-    const res = await fetch('/api/ai/mods', {
+    const res = await fetch('api/ai/mods', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(mod)
     });
