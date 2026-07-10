@@ -242,7 +242,7 @@ document.addEventListener('keydown', e => {
   const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
   if (inField) return;
   if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); mpDuplicateSelected(); }
-  if (!mod && e.key.toLowerCase() === 'i') { e.preventDefault(); mpStartEyedropper(); }
+  if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); mpStartEyedropper(); }
 });
 
 document.addEventListener('DOMContentLoaded', mpRenderSwatches);
