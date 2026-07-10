@@ -254,7 +254,7 @@ function mpViewInit() {
     if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); mpZoomIn(); }
     else if (mod && e.key === '-') { e.preventDefault(); mpZoomOut(); }
     else if (mod && e.key === '0') { e.preventDefault(); mpZoomReset(); }
-else if (mod && e.key.toLowerCase() === 'B' && !e.shiftKey) {
+else if (mod && e.key.toLowerCase() === 'b' && !e.shiftKey) {
  e.preventDefault(); mpToggleGrid(); }
   });
 
