@@ -53,6 +53,9 @@ function mpBuildToolbar() {
 
         <div class="fm-sep"></div>
         <div class="fm-item" id="mp-cmd-btn"><i class="ti ti-command"></i>コマンドパレット<span class="fm-kbd">⌘K</span></div>
+
+        <div class="fm-sep"></div>
+        <div class="fm-item" id="mp-help-btn"><i class="ti ti-help-circle"></i>ヘルプ</div>
       </div>
     </div>
   `;
@@ -69,6 +72,10 @@ function mpBuildToolbar() {
   document.getElementById('mp-eyedropper-btn').onclick = () => { call('mpStartEyedropper')(); closeToolsMenu(); };
   document.getElementById('mp-export-btn').onclick = () => { call('mpOpenExportDialog')(); closeToolsMenu(); };
   document.getElementById('mp-cmd-btn').onclick = () => { call('mpOpenPalette')(); closeToolsMenu(); };
+  document.getElementById('mp-help-btn').onclick = () => {
+    window.open('https://lovesick-gray-hyuga-9557.ssl-lolipop.jp/public_html/docs/overview.html', '_blank', 'noopener');
+    closeToolsMenu();
+  };
 
   // ツールメニュー開閉
   const toolsBtn = document.getElementById('mp-tools-btn');
