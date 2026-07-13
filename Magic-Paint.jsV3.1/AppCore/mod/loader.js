@@ -301,7 +301,7 @@ async function loadMods() {
   await loadZipMods();
 
   try {
-    const res = await fetch('/api/mods');
+    const res = await fetch('api/mods');
     if (!res.ok) throw new Error('MOD API error');
 
     const mods = await res.json();
@@ -398,7 +398,7 @@ function showModsModal() {
       const id = btn.dataset.modId;
       if (!id) return;
       try {
-        const res  = await fetch(`/api/mods/${id}/toggle`, { method: 'POST' });
+        const res  = await fetch(`api/mods/${id}/toggle`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'toggle failed');
         setStatus(`${id} を ${data.enabled ? 'ON' : 'OFF'} にしました。再読み込みします`);
