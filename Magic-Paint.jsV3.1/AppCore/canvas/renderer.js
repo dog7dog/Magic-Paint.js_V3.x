@@ -339,6 +339,7 @@ function redraw() {
   if (typeof _jeSvg !== 'undefined' && _jeSvg) {
     syncJeSvg();
   }
+}
 
 function drawGhost(t, x1, y1, x2, y2) {
   ctx.save();
