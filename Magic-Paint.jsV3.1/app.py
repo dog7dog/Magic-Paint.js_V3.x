@@ -141,9 +141,9 @@ def list_mods():
             continue
         manifest["enabled"]  = manifest.get("enabled", True)
         manifest["id"]       = manifest.get("id") or mod_dir.name
-        manifest["base_url"] = f"/mods/{mod_dir.name}"
-        manifest["scripts"]  = [f"/mods/{mod_dir.name}/{s}" for s in manifest.get("scripts", [])]
-        manifest["styles"]   = [f"/mods/{mod_dir.name}/{s}" for s in manifest.get("styles", [])]
+        manifest["base_url"] = f"mods/{mod_dir.name}"
+        manifest["scripts"]  = [f"mods/{mod_dir.name}/{s}" for s in manifest.get("scripts", [])]
+        manifest["styles"]   = [f"mods/{mod_dir.name}/{s}" for s in manifest.get("styles", [])]
         mods.append(manifest)
     return jsonify(mods)
 
