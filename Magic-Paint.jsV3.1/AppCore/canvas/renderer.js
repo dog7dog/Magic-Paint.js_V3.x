@@ -336,8 +336,9 @@ function redraw() {
   drawMarqueeSelection();
 
   // SVGオーバーレイが表示中なら図形位置を同期（残像防止）
-  if (_jeSvg) syncJeSvg();
-}
+  if (typeof _jeSvg !== 'undefined' && _jeSvg) {
+    syncJeSvg();
+  }
 
 function drawGhost(t, x1, y1, x2, y2) {
   ctx.save();
