@@ -85,7 +85,7 @@
           <div>&nbsp;&nbsp;&nbsp;&nbsp;├─ main.js <span class="comment">← 必須。エントリポイント</span></div>
           <div>&nbsp;&nbsp;&nbsp;&nbsp;└─ style.css <span class="comment">← オプション</span></div>
         </div>
-        <div class="note">MOD IDに使えるのはアルファベット・数字・アンダースコアのみです。フォルダ名・<code>mod.json</code> の <code>id</code>・<code>registerMod()</code> に渡す <code>id</code> はすべて一致させてください。</div>
+        <div class="note">MOD IDに使えるのはアルファベット・数字・アンダースコアのみです。フォルダ名・<code>manifest.json</code> の <code>id</code>・<code>registerMod()</code> に渡す <code>id</code> はすべて一致させてください。</div>
 
         <h3 id="mod-json">manifest.json</h3>
         <p>MODのメタデータと、読み込むファイルの一覧を書くマニフェストです。Magic Paint はこのファイルを読んでMOD一覧に表示します。</p>
@@ -149,11 +149,11 @@
 
         <div class="step">
           <div class="step-number">1</div>
-          <div><h3>フォルダを作る</h3><p><code>mods/my_mod/</code> のように、MOD IDと同じ名前のフォルダを作成し、中に <code>mod.json</code> と <code>main.js</code> を用意します。</p></div>
+          <div><h3>フォルダを作る</h3><p><code>mods/my_mod/</code> のように、MOD IDと同じ名前のフォルダを作成し、中に <code>manifest.json</code> と <code>main.js</code> を用意します。</p></div>
         </div>
         <div class="step">
           <div class="step-number">2</div>
-          <div><h3>mod.json を書く</h3><p>上記の最小構成をコピーし、<code>id</code> / <code>name</code> / <code>description</code> を自分のMODに合わせて書き換えます。</p></div>
+          <div><h3>manifest.json を書く</h3><p>上記の最小構成をコピーし、<code>id</code> / <code>name</code> / <code>description</code> を自分のMODに合わせて書き換えます。</p></div>
         </div>
         <div class="step">
           <div class="step-number">3</div>
@@ -171,7 +171,7 @@
           <div class="step-number">6</div>
           <div><h3>Magic Paintで有効化する</h3><p>Magic Paintを起動し、上部バーの「Mods」ボタンをクリック。作成したMODの名前が一覧に出ていれば認識されています。有効化して「適用」をクリックすると右パネルにボタンが追加されます。</p></div>
         </div>
-        <div class="note">認識されない場合は、ブラウザで <code>/api/mods</code> を開いてレスポンスを確認してください。<code>mod.json</code> のJSONが壊れているとサーバーが無視することがあります。</div>
+        <div class="note">認識されない場合は、ブラウザで <code>/api/mods</code> を開いてレスポンスを確認してください。<code>manifest.json</code> のJSONが壊れているとサーバーが無視することがあります。</div>
       </section>
 
       <section id="api-reference-intro">
@@ -206,7 +206,7 @@
       <section id="api-registerMod">
         <h4 class="api-cat">登録系</h4>
         <h3>registerMod(mod)</h3>
-        <p>MODをシステムに登録します。<strong>main.jsの先頭で必ず呼んでください。</strong>これを呼ぶまでMagic Paintはこのスクリプトを「MOD」として認識しません。<code>id</code>・<code>name</code>・<code>version</code>・<code>description</code> は<code>mod.json</code>の内容と一致させておくと管理が楽になります。</p>
+        <p>MODをシステムに登録します。<strong>main.jsの先頭で必ず呼んでください。</strong>これを呼ぶまでMagic Paintはこのスクリプトを「MOD」として認識しません。<code>id</code>・<code>name</code>・<code>version</code>・<code>description</code> は<code>manifest.json</code>の内容と一致させておくと管理が楽になります。</p>
         <pre><code>api.registerMod({
   id: "my_mod",          // 必須。ユニークな識別子
   name: "My MOD",        // 表示名
@@ -567,7 +567,7 @@ cv.addEventListener("mouseup", function (e) {
         <h2>チェックリスト</h2>
         <p>MODを公開・共有する前に、次の項目を確認してください。</p>
         <ul class="checklist">
-          <li><code>mod.json</code> の <code>id</code> がフォルダ名と一致している</li>
+          <li><code>manifest.json</code> の <code>id</code> がフォルダ名と一致している</li>
           <li><code>main.js</code> が即時関数 <code>(function(){ ... })()</code> で囲まれている</li>
           <li><code>api</code> の存在確認（<code>if (!api) return;</code>）がある</li>
           <li><code>registerMod()</code> が最初に呼ばれている</li>
