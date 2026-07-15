@@ -10,9 +10,10 @@ tlDurInput.addEventListener('input', () => {
 // ── タイムライン ─────────────────────────────────────────────
 function drawTimeline() {
   syncLayers();
+  const rows = getTimelineRows();
   const sw2 = tlScroll.clientWidth || 300;
   const totalW = Math.max(sw2, Math.round(totalDur * PX_PER_SEC) + 40);
-  const totalH = Math.max(shapes.length * TRACK_H, 10);
+  const totalH = Math.max(rows.length * TRACK_H, 10);
 
   rulerCv.width = totalW; rulerCv.height = RULER_H;
   trackCv.width = totalW; trackCv.height = totalH;
@@ -34,8 +35,18 @@ function drawTimeline() {
   // tracks
   tctx.fillStyle = '#161616';
   tctx.fillRect(0, 0, totalW, totalH);
-  shapes.forEach((s, i) => {
+  rows.forEach((row, i) => {
     const y = i * TRACK_H;
+
+    if (row.kind === 'layer') {
+      tctx.fillStyle = '#20242b';
+      tctx.fillRect(0, y, totalW, TRACK_H);
+      tctx.fillStyle = 'rgba(255,255,255,0.06)';
+      tctx.fillRect(0, y + TRACK_H - 1, totalW, 1);
+      return;
+    }
+
+    const s = row.shape;
     tctx.fillStyle = i % 2 === 0 ? '#161616' : '#1c1c1c';
     tctx.fillRect(0, y, totalW, TRACK_H);
     tctx.fillStyle = 'rgba(255,255,255,0.04)';
@@ -83,10 +94,11 @@ trackCv.addEventListener('click', e => {
   const x = (e.clientX - r.left) * (trackCv.width / r.width);
   const y = (e.clientY - r.top) * (trackCv.height / r.height);
   const idx = Math.floor(y / TRACK_H);
-  if (idx >= 0 && idx < shapes.length) {
-    animT = Math.max(0, Math.min(1, x / PX_PER_SEC / totalDur));
-    selected = shapes[idx]; syncProps(); syncLayers(); renderAnimationCanvasFrame(animT); drawTimeline();
-  }
+  const row = getTimelineRows()[idx];
+  if (!row) return;
+  animT = Math.max(0, Math.min(1, x / PX_PER_SEC / totalDur));
+  if (row.kind === 'shape') { selected = row.shape; syncProps(); }
+  syncLayers(); renderAnimationCanvasFrame(animT); drawTimeline();
 });
 
 rulerCv.addEventListener('click', e => {
