@@ -327,6 +327,26 @@ function _buildFolderRow(folder) {
   return wrap;
 }
 
+// タイムラインの行順（レイヤー行 → そのレイヤーの図形行）を返す
+function getTimelineRows() {
+  const rows = [];
+  const seen = new Set();
+  [...layers].reverse().filter(l => l.type !== 'folder').forEach(layer => {
+    rows.push({ kind: 'layer', layer });
+    shapes.forEach(s => {
+      if ((s.layerId || 'layer-1') === layer.id) {
+        rows.push({ kind: 'shape', shape: s, layer });
+        seen.add(s);
+      }
+    });
+  });
+  // どのレイヤーにも属さない図形も取りこぼさないよう末尾に追加
+  shapes.forEach(s => { if (!seen.has(s)) rows.push({ kind: 'shape', shape: s, layer: null }); });
+  return rows;
+}
+
+const _TL_SHAPE_ICONS = { rect: 'ti-square', circle: 'ti-circle', triangle: 'ti-triangle', polygon: 'ti-hexagon', line: 'ti-minus', pen: 'ti-pencil', brush: 'ti-brush', 'mod-brush': 'ti-brush' };
+
 function syncLayers() {
   const fullList = document.getElementById('layers-list');
   if (fullList) {
@@ -336,13 +356,28 @@ function syncLayers() {
     });
   }
   layerList.innerHTML = '';
-  [...layers].reverse().filter(l => l.type !== 'folder').forEach(layer => {
-    const isActive = layer.id === activeLayerId;
-    const row = document.createElement('div');
-    row.className = 'tl-layer-row' + (isActive ? ' sel' : '');
-    row.innerHTML = `<span class="tl-layer-name">${layer.parentId ? '  ' : ''}${layer.name}</span>`;
-    row.addEventListener('click', () => { activeLayerId = layer.id; syncLayers(); });
-    layerList.appendChild(row);
+  getTimelineRows().forEach(row => {
+    if (row.kind === 'layer') {
+      const layer = row.layer;
+      const isActive = layer.id === activeLayerId;
+      const el = document.createElement('div');
+      el.className = 'tl-layer-row' + (isActive ? ' sel' : '');
+      el.innerHTML = `<span class="tl-layer-name">${layer.parentId ? '  ' : ''}${layer.name}</span>`;
+      el.addEventListener('click', () => { activeLayerId = layer.id; syncLayers(); });
+      layerList.appendChild(el);
+      return;
+    }
+    const s = row.shape;
+    const icon = _TL_SHAPE_ICONS[s.type] || 'ti-shape';
+    const el = document.createElement('div');
+    el.className = 'tl-shape-row' + (s === selected ? ' sel' : '');
+    el.innerHTML = `<i class="ti ${icon}"></i><span class="tl-shape-name">${s.name || s.type}</span>`;
+    el.addEventListener('click', () => {
+      selected = s;
+      if (row.layer) activeLayerId = row.layer.id;
+      syncProps(); syncLayers(); redraw(); drawTimeline();
+    });
+    layerList.appendChild(el);
   });
 }
 
