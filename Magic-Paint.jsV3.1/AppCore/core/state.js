@@ -114,3 +114,16 @@ function toast(icon, msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2400);
 }
+
+// テキスト入力中かどうかを判定する（グローバルなキーボードショートカットを
+// 抑制すべきかの判定に使う）。Monaco Editor は input/textarea ではなく
+// role="textbox" の div（EditContext API）にフォーカスするため、
+// tagName だけのチェックでは Monaco 内での Space / Ctrl+C 等を誤検知できない。
+function isTypingContext(el) {
+  el = el || document.activeElement;
+  if (!el) return false;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return true;
+  if (el.isContentEditable) return true;
+  if (el.closest && el.closest('.monaco-editor')) return true;
+  return false;
+}
