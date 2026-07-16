@@ -61,7 +61,7 @@ document.addEventListener('keydown', e => {
       : { x: sx, y: sy };
   }
 
-  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+  if (isTypingContext()) return;
 
   if (mod && e.key === 'c') { copySelected(); e.preventDefault(); }
   if (mod && e.key === 'v') { paste(); e.preventDefault(); }
