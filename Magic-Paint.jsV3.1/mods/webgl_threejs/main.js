@@ -6,7 +6,6 @@
   const IMAGE_TYPE = "webgl-image";
   const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
   let threeModulePromise = null;
-  let activeCleanup = null;
   let _threeLayerObj = null;  // レイヤーパネルに登録したオブジェクトの参照
 
   api.registerMod({
@@ -39,7 +38,7 @@
 
       btn.addEventListener("click", () => {
         const scene = getScene();
-        if (scene) openThreePreviewModal(scene, appApi);
+        if (scene) openThreePreviewTab(scene, appApi);
       });
 
       imageBtn.addEventListener("click", () => importImageLayer(appApi));
@@ -227,85 +226,79 @@
   }
 
 
-  function openThreePreviewModal(scene, appApi) {
-    closeThreePreviewModal();
+  // 通常のプレビュー(openPreview)と同じ方式: 単体HTMLをBlob化して別タブ(window.open)で開く
+  function openThreePreviewTab(scene, appApi) {
     scene = scene || {};
-
-    const w = Number(scene.width || 1280);
-    const h = Number(scene.height || 720);
     const jeMode = document.getElementById("je-mode-select")?.value || "canvas";
     const userCode = jeMode === "threejs" ? (document.getElementById("je-code")?.value.trim() || "") : "";
 
-    const modal = document.createElement("div");
-    modal.id = "three-preview-modal";
-    modal.innerHTML = [
-      '<div class="three-preview-card" role="dialog" aria-modal="true" aria-label="Three.jsプレビュー">',
-      '  <div class="three-preview-head">',
-      '    <div class="three-preview-title"><i class="ti ti-cube"></i><span>Three.js Preview</span></div>',
-      '    <button class="three-preview-close" type="button" title="閉じる"><i class="ti ti-x"></i></button>',
-      '  </div>',
-      '  <div class="three-preview-stage">',
-      '    <div class="three-canvas-wrap">',
-      '      <canvas class="three-preview-canvas" width="' + w + '" height="' + h + '"></canvas>',
-      (userCode ? '      <canvas class="three-user-canvas" width="' + w + '" height="' + h + '"></canvas>' : ''),
-      '    </div>',
+    const html = buildThreePreviewHTML(scene, userCode);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+
+    const w = Math.min(Number(scene.width || 1280) + 60, 1400);
+    const h = Math.min(Number(scene.height || 720) + 140, 900);
+    const win = window.open(url, "mlc-threejs-preview", `width=${w},height=${h}`);
+    if (!win) {
+      appApi.toast("ti-alert-triangle", "ポップアップがブロックされました");
+      URL.revokeObjectURL(url);
+    } else {
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+  }
+
+  function buildThreePreviewHTML(scene, userCode) {
+    const w = Number(scene.width || 1280);
+    const h = Number(scene.height || 720);
+    const json = JSON.stringify(scene).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+    const runtime = mountThreeTexturePreview.toString();
+
+    return [
+      '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>Three.js Preview</title>',
+      '<style>',
+      '* { box-sizing:border-box; }',
+      'body { margin:0; background:#111; min-height:100vh; display:flex; align-items:center; justify-content:center; overflow:auto; font-family:system-ui,sans-serif; }',
+      '#wrap { display:flex; flex-direction:column; gap:10px; align-items:center; padding:16px; }',
+      '.three-canvas-wrap { position:relative; display:inline-block; }',
+      '.three-preview-canvas { display:block; max-width:96vw; max-height:80vh; border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,.45); background:#111; }',
+      '.three-user-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }',
+      '.three-preview-bar { display:flex; align-items:center; gap:8px; color:#ddd; font-size:12px; }',
+      'button { background:#222; color:#eee; border:1px solid #444; border-radius:6px; padding:6px 10px; cursor:pointer; }',
+      'button:hover { border-color:#3B8AE6; }',
+      '.three-preview-status { color:#8f96a8; }',
+      '.three-preview-warn { max-width:min(760px,96vw); color:#d0a85a; font-size:12px; text-align:center; line-height:1.5; }',
+      '</style></head><body>',
+      '<div id="wrap">',
+      '  <div class="three-canvas-wrap">',
+      '    <canvas class="three-preview-canvas" width="' + w + '" height="' + h + '"></canvas>',
+      (userCode ? '    <canvas class="three-user-canvas" width="' + w + '" height="' + h + '"></canvas>' : ''),
       '  </div>',
       '  <div class="three-preview-bar">',
       '    <button class="three-preview-play" type="button">停止</button>',
       '    <button class="three-preview-restart" type="button">最初から</button>',
-      '    <button class="three-preview-export" type="button">JS書出</button>',
       '    <span class="three-preview-time">0.00s</span>',
       '    <span class="three-preview-status">Three.js 読み込み中</span>',
-      (userCode ? '    <span class="three-preview-badge">+ JSコード</span>' : ''),
       '  </div>',
       '  <div class="three-preview-warn"></div>',
-      '</div>'
-    ].join('');
-
-    document.body.appendChild(modal);
-
-    const closeBtn = modal.querySelector(".three-preview-close");
-    const exportBtn = modal.querySelector(".three-preview-export");
-    closeBtn.addEventListener("click", closeThreePreviewModal);
-    exportBtn.addEventListener("click", () => exportThreeJS(scene, appApi));
-    modal.addEventListener("click", e => {
-      if (e.target === modal) closeThreePreviewModal();
-    });
-
-    const onKey = e => {
-      if (e.key === "Escape") closeThreePreviewModal();
-    };
-    document.addEventListener("keydown", onKey);
-
-    const statusEl = modal.querySelector(".three-preview-status");
-    const warnEl = modal.querySelector(".three-preview-warn");
-
-    loadThree()
-      .then(THREE => {
-        if (!document.body.contains(modal)) return;
-        activeCleanup = mountThreeTexturePreview(THREE, scene, modal, userCode);
-        appApi.toast("ti-cube", "Three.jsプレビューを開きました");
-      })
-      .catch(err => {
-        console.error("[Three.js preview load failed]", err);
-        statusEl.textContent = "Three.js 読み込み失敗";
-        warnEl.textContent = "Three.js moduleを読み込めませんでした。ネットワークまたはCDNを確認してください。";
-      });
-
-    modal._threePreviewCleanup = () => {
-      document.removeEventListener("keydown", onKey);
-      if (activeCleanup) {
-        activeCleanup();
-        activeCleanup = null;
-      }
-    };
-  }
-
-  function closeThreePreviewModal() {
-    const modal = document.getElementById("three-preview-modal");
-    if (!modal) return;
-    if (typeof modal._threePreviewCleanup === "function") modal._threePreviewCleanup();
-    modal.remove();
+      '</div>',
+      '<script type="module">',
+      'const THREE_URL = ' + JSON.stringify(THREE_URL) + ';',
+      'const data = ' + json + ';',
+      'const userCode = ' + JSON.stringify(userCode || "") + ';',
+      'const mountThreeTexturePreview = ' + runtime + ';',
+      '(async () => {',
+      '  try {',
+      '    const THREE = await import(THREE_URL);',
+      '    mountThreeTexturePreview(THREE, data, document.getElementById("wrap"), userCode);',
+      '  } catch (err) {',
+      '    console.error(err);',
+      '    document.querySelector(".three-preview-status").textContent = "Three.js 読み込み失敗";',
+      '    document.querySelector(".three-preview-warn").textContent = "Three.js moduleを読み込めませんでした。ネットワークまたはCDNを確認してください。";',
+      '  }',
+      '})();',
+      '</script>',
+      '</body></html>'
+    ].join("\n");
   }
 
   function exportThreeJS(scene, appApi) {
