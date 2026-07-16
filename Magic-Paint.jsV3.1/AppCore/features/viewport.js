@@ -177,7 +177,7 @@ function mpInstallZoomPan() {
   let panning = false, sx0 = 0, sy0 = 0, sl = 0, st = 0;
   let spaceDown = false;
   document.addEventListener('keydown', e => {
-    if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+    if (e.code === 'Space' && !isTypingContext()) {
       spaceDown = true; wrap.style.cursor = 'grab'; e.preventDefault();
     }
   });
@@ -249,7 +249,7 @@ function mpViewInit() {
   // ホットキー
   document.addEventListener('keydown', e => {
     const mod = e.metaKey || e.ctrlKey;
-    const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+    const inField = isTypingContext();
     if (inField) return;
     if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); mpZoomIn(); }
     else if (mod && e.key === '-') { e.preventDefault(); mpZoomOut(); }
