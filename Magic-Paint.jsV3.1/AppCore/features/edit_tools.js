@@ -239,7 +239,7 @@ window.mpRenderSwatches = mpRenderSwatches;
 // ── ホットキー: 複製(⌘D) / スポイト(I) ──
 document.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey;
-  const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+  const inField = isTypingContext();
   if (inField) return;
   if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); mpDuplicateSelected(); }
   if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); mpStartEyedropper(); }
