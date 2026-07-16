@@ -167,7 +167,7 @@ window.mpShowShortcuts = mpShowShortcuts;
 // ── ホットキー登録 ──
 document.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey;
-  const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+  const inField = isTypingContext();
   if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); mpOpenPalette(); return; }
   if (!inField && e.key === '?') { e.preventDefault(); mpShowShortcuts(); return; }
   if (!inField && e.key === '/' && e.shiftKey) { e.preventDefault(); mpShowShortcuts(); }
