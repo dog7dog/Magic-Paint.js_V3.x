@@ -1077,7 +1077,12 @@ body {
   border-bottom: 1px solid #21262d;
   flex-shrink: 0;
 }
-#je-file-add-btn {
+#je-files-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#je-file-add-btn, #je-file-import-btn {
   width: 22px;
   height: 22px;
   display: flex;
@@ -1089,7 +1094,7 @@ body {
   color: #c9d1d9;
   cursor: pointer;
 }
-#je-file-add-btn:hover { background: #21262d; }
+#je-file-add-btn:hover, #je-file-import-btn:hover { background: #21262d; }
 
 #je-files-list {
   flex: 1;
