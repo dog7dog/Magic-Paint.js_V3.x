@@ -373,10 +373,67 @@ function renderJeFiles() {
   });
 }
 
+function uniqueJeFileName(name) {
+  const m = name.match(/^(.*?)(\.[^.]*)?$/);
+  const base = m[1], ext = m[2] || '';
+  let i = 2;
+  let candidate = base + ' (' + i + ')' + ext;
+  while (window.__jeUserFiles[candidate] !== undefined) {
+    i++;
+    candidate = base + ' (' + i + ')' + ext;
+  }
+  return candidate;
+}
+
+// PCから選んだファイルを読み込み、ファイル一覧に追加して開く
+function importLocalFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let name = file.name;
+      if (window.__jeUserFiles[name] !== undefined &&
+          !confirm(`「${name}」は既に存在します。上書きしますか？`)) {
+        name = uniqueJeFileName(name);
+      }
+      window.__jeUserFiles[name] = reader.result;
+      persistJeUserFiles();
+      resolve(name);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+async function importLocalFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  let lastName = null;
+  for (const file of files) {
+    try {
+      lastName = await importLocalFile(file);
+    } catch (e) {
+      window.toast?.('ti-alert-triangle', `「${file.name}」の読み込みに失敗しました`);
+    }
+  }
+  if (lastName) {
+    openCustomFile(lastName);
+    window.toast?.('ti-file-check', `${files.length}件のファイルを読み込みました`);
+  }
+}
+
 function initJeFileManager() {
   loadJeUserFiles();
   const addBtn = document.getElementById('je-file-add-btn');
   addBtn?.addEventListener('click', createNewJeFile);
+
+  const importBtn = document.getElementById('je-file-import-btn');
+  const importInput = document.getElementById('je-file-import-input');
+  importBtn?.addEventListener('click', () => importInput?.click());
+  importInput?.addEventListener('change', async e => {
+    await importLocalFiles(e.target.files);
+    e.target.value = '';
+  });
+
   renderJeFiles();
 }
 
