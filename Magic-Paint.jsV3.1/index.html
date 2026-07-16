@@ -340,7 +340,12 @@
       <div id="je-files">
         <div id="je-files-head">
           <span>FILES</span>
-          <button id="je-file-add-btn" title="新規ファイル"><i class="ti ti-file-plus"></i></button>
+          <div id="je-files-head-actions">
+            <button id="je-file-import-btn" title="PCからファイルを開く"><i class="ti ti-upload"></i></button>
+            <button id="je-file-add-btn" title="新規ファイル"><i class="ti ti-file-plus"></i></button>
+          </div>
+          <input type="file" id="je-file-import-input" multiple
+            accept=".js,.jsx,.ts,.tsx,.html,.htm,.css,.json,.txt,.md" style="display:none">
         </div>
         <div id="je-files-list"></div>
       </div>
