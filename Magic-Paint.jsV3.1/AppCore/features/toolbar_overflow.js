@@ -3,10 +3,12 @@
 //   #topbar / #editor-topbar が入りきらないボタン(MODが追加した分など)を
 //   末尾から「⋯」メニューへ自動的に収納する
 //
-//   #editor-topbar の場合、MOD UI(position:'editor-top')は内側の
-//   #editor-mod-ui-area にまとめて追加される。これをブロック単位で
-//   丸ごと収納するのではなく、中の要素を1つずつ個別に収納することで、
-//   MODが増えても本体側の操作(プレビュー等)をできるだけ残す。
+//   MOD UI は registerUI() により
+//     .mod-ui-block > (.mod-ui-title) + .mod-ui-body > 実際のボタン群
+//   というラッパー構造で追加され、#editor-topbar の場合はさらに
+//   #editor-mod-ui-area にまとめて入る。これらを丸ごと収納するのではなく、
+//   中の要素を1つずつ個別に収納することで、MODがいくつ増えても
+//   本体側の操作をできるだけ残す。
 // ══════════════════════════════════════════════════════════════
 
 function mpDebounce(fn, wait) {
@@ -17,18 +19,16 @@ function mpDebounce(fn, wait) {
   };
 }
 
-// toolbarId ごとに「優先して individually 収納する内側コンテナ」のidを定義
-const MP_TOOLBAR_INNER_SOURCES = {
-  'editor-topbar': ['editor-mod-ui-area']
-};
-
-// registerUI() が作る .mod-ui-block > (.mod-ui-title) + .mod-ui-body > 実際のボタン群
-// というラッパー構造を展開し、個々のボタン単位のリストにする（ブロックごと収納しないため）
+// 「中身をまとめるためだけのラッパー」を再帰的に展開し、個々のボタン単位の
+// リストにする。#editor-mod-ui-area / .mod-ui-block / .mod-ui-body はすべて
+// このラッパー扱い（#topbar 直下の .mod-ui-block も含めて統一的に展開する）。
 function mpUnwrapUiWrapper(el) {
-  if (el.classList && (el.classList.contains('mod-ui-block') || el.classList.contains('mod-ui-body'))) {
+  const isWrapperContainer =
+    el.id === 'editor-mod-ui-area' ||
+    (el.classList && (el.classList.contains('mod-ui-block') || el.classList.contains('mod-ui-body')));
+  if (isWrapperContainer) {
     const kids = [...el.children].filter(c => !c.classList.contains('mod-ui-title'));
-    // 中身を個別ボタンへ展開する。既に空（全ボタンが収納済み）なら
-    // 中身のない殻を移動対象にせず、そのまま無視する
+    // 中身が空（すでに全部収納済み）なら、空の殻は移動対象にせず無視する
     return kids.length ? kids.flatMap(mpUnwrapUiWrapper) : [];
   }
   return [el];
@@ -60,54 +60,27 @@ function mpInitToolbarOverflow(toolbarId) {
   }
   const menu = wrap.querySelector('.tb-overflow-menu');
 
-  // 収納の優先順位: 内側コンテナ(MODが追加したUI)を先に個別で使い切ってから、
-  // 最後の手段としてツールバー本体の直下の子(内側コンテナ自身とwrapを除く)を使う。
-  const innerIds = MP_TOOLBAR_INNER_SOURCES[toolbarId] || [];
-  const innerSources = innerIds.map(id => document.getElementById(id)).filter(Boolean);
-  const sourceOrder = [...innerSources, toolbar];
+  function flattenedUnits() {
+    return [...toolbar.children]
+      .filter(c => c !== wrap)
+      .flatMap(mpUnwrapUiWrapper);
+  }
 
   function isOverflowing() {
     return toolbar.scrollWidth > toolbar.clientWidth + 1;
   }
 
-  function lastCollapsibleChild() {
-    for (const src of sourceOrder) {
-      if (src !== toolbar) {
-        // 内側コンテナ(MOD UIエリア)は .mod-ui-block/.mod-ui-body を展開し、
-        // 個々のボタン単位で末尾から取る
-        const units = [...src.children].flatMap(mpUnwrapUiWrapper);
-        if (units.length) return { parent: src, el: units[units.length - 1] };
-        continue;
-      }
-      // toolbar自身から取る場合は wrap と内側コンテナは対象外（最後の手段）
-      let child = src.lastElementChild;
-      while (child && (child === wrap || innerSources.includes(child))) {
-        child = child.previousElementSibling;
-      }
-      if (child) return { parent: src, el: child };
-    }
-    return null;
-  }
-
   function collapseOne() {
-    const found = lastCollapsibleChild();
-    if (!found) return false;
-    found.el.dataset.tbOverflowFrom = found.parent === toolbar ? '' : found.parent.id;
-    menu.insertBefore(found.el, menu.firstChild);
+    const units = flattenedUnits();
+    if (!units.length) return false;
+    menu.insertBefore(units[units.length - 1], menu.firstChild);
     return true;
   }
 
   function expandOne() {
     const first = menu.firstElementChild;
     if (!first) return false;
-    const fromId = first.dataset.tbOverflowFrom;
-    const target = fromId ? document.getElementById(fromId) : null;
-    delete first.dataset.tbOverflowFrom;
-    if (target) {
-      target.appendChild(first);
-    } else {
-      toolbar.insertBefore(first, wrap);
-    }
+    toolbar.insertBefore(first, wrap);
     return true;
   }
 
@@ -135,7 +108,7 @@ function mpInitToolbarOverflow(toolbarId) {
     window.addEventListener('resize', debouncedSync);
   }
 
-  // subtree:true で #editor-mod-ui-area のような内側コンテナへの
+  // subtree:true で #editor-mod-ui-area や .mod-ui-block への
   // 追加/削除(MODの動的登録)も検知する。wrap内部の変化(自分自身の収納/復元操作)は無視。
   new MutationObserver(muts => {
     const relevant = muts.some(m => !wrap.contains(m.target));
