@@ -79,6 +79,13 @@ body {
   align-items: center;
   gap: 4px;
 }
+/* MOD の registerUI() が作る .mod-ui-block の既定レイアウト。
+   個別のMODがこれを上書きしなくても、中のボタン群が横並びになるようにする */
+.mod-ui-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 
 /* File menu */
 #file-wrap { position: relative; }
@@ -2471,3 +2478,44 @@ body {
 .mp-btn-accent { background: var(--accent2); border-color: var(--accent); color: #fff; }
 .mp-btn-ghost:hover { color: var(--fg0); }
 .mp-btn-accent:hover { background: var(--accent); }
+
+/* ── ツールバーのオーバーフロー「⋯」メニュー ────────────────── */
+/* 子要素を縮めて詰め込むのではなく、収まらない分は「⋯」メニューへ逃がす。
+   #editor-mod-ui-area は MOD UI(.mod-ui-block > .mod-ui-body > ボタン群)を
+   ネストして格納するflexコンテナなので、その中の要素も縮まないようにする */
+#topbar > *,
+#editor-topbar > *,
+#editor-mod-ui-area > *,
+.mod-ui-block > *,
+.mod-ui-block .mod-ui-body > * {
+  flex-shrink: 0;
+}
+.tb-overflow-wrap {
+  display: none;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.tb-overflow-btn {
+  letter-spacing: 1px;
+}
+.tb-overflow-menu {
+  right: 0;
+  left: auto;
+  min-width: 200px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.tb-overflow-menu.open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.tb-overflow-menu .tb-sep {
+  display: none;
+}
+.tb-overflow-menu .mod-ui-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
