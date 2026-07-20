@@ -118,7 +118,14 @@ function mpInitToolbarOverflow(toolbarId) {
   // 追加/削除(MODの動的登録)も検知する。wrap内部の変化(自分自身の収納/復元操作)は無視。
   const observer = new MutationObserver(muts => {
     const relevant = muts.some(m => !wrap.contains(m.target));
-    if (relevant) debouncedSync();
+    if (!relevant) return;
+    // MODは読み込みタイミングがバラバラで、「⋯」を追加した後に
+    // 別のMODが自分のボタンをtoolbarへappendChildすることがある。
+    // その場合ボタンは(appendChildの仕様上)wrapより後ろ＝画面上「⋯」の
+    // 右側に一瞬表示されてしまう。sync()のデバウンス(80ms)を待たず、
+    // 即座にwrapを末尾へ戻してこの見た目のズレを防ぐ。
+    if (toolbar.lastElementChild !== wrap) toolbar.appendChild(wrap);
+    debouncedSync();
   });
   observer.observe(toolbar, { childList: true, subtree: true });
 
