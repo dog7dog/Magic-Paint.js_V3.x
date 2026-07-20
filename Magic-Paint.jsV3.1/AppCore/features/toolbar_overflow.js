@@ -98,6 +98,12 @@ function mpInitToolbarOverflow(toolbarId) {
       if (isOverflowing()) { collapseOne(); break; }
     }
     wrap.style.display = menu.firstElementChild ? 'inline-block' : 'none';
+
+    // collapseOne/expandOne 自身が起こしたDOM変更の記録をここで消費し、
+    // 下のMutationObserverのコールバックに渡らないようにする。
+    // これをしないと「収納/復元 → それを検知して再度sync()」という
+    // フィードバックループになり、ボタンが揺れ動いて不安定に見える原因になる。
+    observer.takeRecords();
   }
 
   const debouncedSync = mpDebounce(sync, 80);
@@ -110,10 +116,11 @@ function mpInitToolbarOverflow(toolbarId) {
 
   // subtree:true で #editor-mod-ui-area や .mod-ui-block への
   // 追加/削除(MODの動的登録)も検知する。wrap内部の変化(自分自身の収納/復元操作)は無視。
-  new MutationObserver(muts => {
+  const observer = new MutationObserver(muts => {
     const relevant = muts.some(m => !wrap.contains(m.target));
     if (relevant) debouncedSync();
-  }).observe(toolbar, { childList: true, subtree: true });
+  });
+  observer.observe(toolbar, { childList: true, subtree: true });
 
   setTimeout(sync, 50);
 }
