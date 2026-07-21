@@ -19,6 +19,31 @@ function mpDebounce(fn, wait) {
   };
 }
 
+// loadMods() はMODを1件ずつ順番にネットワーク越しに読み込むため、
+// 各MODが追加するボタンが数百ms〜数秒かけてバラバラに届く。
+// その都度ツールバーを再収納すると、MODが届くたびに見た目が何度も
+// ガタガタ動いて見える。loadMods() 完了後にもう一度だけ確実に
+// 同期し直せるよう、各ツールバーの sync() をここに集めておく。
+//
+// 注意: loadMods 自体を上書きしても間に合わない。app.js の
+// setTimeout(loadMods, 250) は toolbar_overflow.js(最後に読み込まれる)
+// より先に実行され、その時点の(素の)関数参照を既に捕まえてしまっているため。
+// 一方 setStatus は loadMods 内部で毎回「識別子解決」してから呼ばれるので、
+// 後から上書きしても間に合う。loadMods完了時に呼ばれる特有のメッセージを
+// 目印にして、完了を検知する。
+const mpPendingSyncs = [];
+if (typeof window.setStatus === 'function' && !window.__mpSetStatusWrapped) {
+  window.__mpSetStatusWrapped = true;
+  const _origSetStatus = window.setStatus;
+  window.setStatus = function (msg, ...rest) {
+    const result = _origSetStatus.call(this, msg, ...rest);
+    if (typeof msg === 'string' && /^MOD.*読み込み(完了|失敗)/.test(msg)) {
+      mpPendingSyncs.forEach(fn => fn());
+    }
+    return result;
+  };
+}
+
 // 「中身をまとめるためだけのラッパー」を再帰的に展開し、個々のボタン単位の
 // リストにする。#editor-mod-ui-area / .mod-ui-block / .mod-ui-body はすべて
 // このラッパー扱い（#topbar 直下の .mod-ui-block も含めて統一的に展開する）。
@@ -106,7 +131,10 @@ function mpInitToolbarOverflow(toolbarId) {
     observer.takeRecords();
   }
 
-  const debouncedSync = mpDebounce(sync, 80);
+  // MODが1件ずつ順番に届く間、そのたびに再収納して見た目が何度も動かないよう、
+  // ある程度まとめて処理されるまで待つ(短いリサイズ操作へは十分速く反応する範囲で)
+  const debouncedSync = mpDebounce(sync, 350);
+  mpPendingSyncs.push(sync);
 
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(debouncedSync).observe(toolbar);
