@@ -72,14 +72,20 @@ function monacoLangForMode(mode) {
   return 'javascript';
 }
 
+// "@latest" は jsdelivr のエイリアス解決が不安定で、'javascript' などの
+// 言語コントリビューションが登録されないまま editor.main が resolve されることがあり
+// (シンタックスハイライトが一切効かず全トークンが plaintext 扱いになる)、
+// 実バージョンを明示的に固定することで解消する。
+const MONACO_VERSION = '0.52.2';
+
 function loadMonaco() {
   if (window.monaco) return Promise.resolve();
   if (monacoLoading) return monacoLoading;
   monacoLoading = new Promise((resolve, reject) => {
     const loader = document.createElement('script');
-    loader.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@latest/min/vs/loader.js';
+    loader.src = `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VERSION}/min/vs/loader.js`;
     loader.onload = () => {
-      window.require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@latest/min/vs' } });
+      window.require.config({ paths: { vs: `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VERSION}/min/vs` } });
       window.require(['vs/editor/editor.main'], resolve, reject);
     };
     loader.onerror = reject;
