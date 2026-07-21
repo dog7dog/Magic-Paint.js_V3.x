@@ -667,7 +667,8 @@ function generateEditorCode() {
 }
 
 // GSAPをキャンバス上で使うためのオーバーレイSVG
-let _jeSvg = null;
+// (変数自体は state.js で宣言。renderer.js の方が先に読み込まれ、
+//  ResizeObserver 経由で redraw() が early に呼ばれると未宣言参照になるため)
 
 function ensureJeSvg() {
   if (_jeSvg) return _jeSvg;
