@@ -13,6 +13,11 @@ const layerList = document.getElementById('tl-layer-list');
 const tlDurInput = document.getElementById('tl-dur');
 
 let looping = true;
+
+// GSAPをキャンバス上で使うためのオーバーレイSVG（実体は ui/editor.js が管理）。
+// renderer.js の ResizeObserver が editor.js の読み込み完了より先に発火すると
+// 未宣言参照(ReferenceError)になり得るため、最初に読み込まれるこのファイルで宣言する。
+let _jeSvg = null;
 // ── グローバル状態 ────────────────────────────────────────────
 let color = '#3B8AE6';
 let doFill = false;
