@@ -143,8 +143,15 @@ function _executeZipMod(manifest, files, assetMap) {
   }
 
   // __assets と __modId をスコープ変数として注入
-  // eslint-disable-next-line no-new-func
-  new Function('__assets', '__modId', combined)(assetMap, manifest.id);
+  // ZIP実行中は registerMod() が LoadedMods(サーバーフォルダ型)へ
+  // 混ざらないよう目印を立てる（api.js 側で参照）
+  window.__mpZipModExecuting = true;
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function('__assets', '__modId', combined)(assetMap, manifest.id);
+  } finally {
+    window.__mpZipModExecuting = false;
+  }
 }
 
 // ── セキュリティ警告ダイアログ ────────────────────────────────
