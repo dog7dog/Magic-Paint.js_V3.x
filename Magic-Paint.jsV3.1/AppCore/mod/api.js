@@ -16,7 +16,15 @@ window.AnimationApp = {
 
   registerMod(mod) {
     if (!mod || !mod.id) return;
-    if (!LoadedMods.some(m => m.id === mod.id)) LoadedMods.push(mod);
+    // ZIPインストール型MODの main.js もこの同じ registerMod() を呼ぶため、
+    // ZIP実行中(loader.js が __mpZipModExecuting を立てている間)は
+    // LoadedMods(サーバーフォルダ型MOD一覧)に混ぜない。
+    // 混ざるとMOD一覧でZIP MODが「サーバー型」と誤認識され、
+    // ON/OFFトグル(存在しないエンドポイントを叩いて失敗する)だけが表示され、
+    // 本来出るべきアンインストールボタンが出せなくなる。
+    if (!window.__mpZipModExecuting && !LoadedMods.some(m => m.id === mod.id)) {
+      LoadedMods.push(mod);
+    }
     console.log('[MOD loaded]', mod.id, mod.name || '');
     setStatus(`MOD読み込み: ${mod.name || mod.id}`);
   },
