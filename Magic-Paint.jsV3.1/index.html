@@ -140,7 +140,7 @@
         <div id="panel-props" style="display:none">
           <div class="pp-title" id="pp-title">四角形</div>
 
-          <div class="pp-row">
+          <div class="pp-row" id="row-sw">
             <span class="pp-label">線幅</span>
             <input type="range" id="p-sw" min="0.5" max="20" step="0.5" value="2">
             <span class="pp-val" id="p-sw-v">2</span>
@@ -155,6 +155,15 @@
             <input type="range" id="p-sides" min="3" max="12" step="1" value="6">
             <span class="pp-val" id="p-sides-v">6</span>
           </div>
+          <div class="pp-row" id="row-text-font">
+            <span class="pp-label">フォント</span>
+            <select id="p-text-font"></select>
+          </div>
+          <div class="pp-row" id="row-text-size">
+            <span class="pp-label">文字サイズ</span>
+            <input type="range" id="p-text-size" min="8" max="120" step="1" value="24">
+            <span class="pp-val" id="p-text-size-v">24</span>
+          </div>
           <div class="pp-row">
             <span class="pp-label">角度</span>
             <input type="range" id="p-rot" min="0" max="360" step="1" value="0">
@@ -165,7 +174,7 @@
             <input type="range" id="p-opa" min="0" max="100" step="1" value="100">
             <span class="pp-val" id="p-opa-v">100%</span>
           </div>
-          <div class="pp-row">
+          <div class="pp-row" id="row-dash">
             <span class="pp-label">線スタイル</span>
             <select id="p-dash">
               <option value="0">実線</option>
@@ -233,6 +242,7 @@
         <button class="rp-btn" data-tool="triangle" title="三角形 T"><i class="ti ti-triangle"></i></button>
         <button class="rp-btn" data-tool="polygon" title="多角形 P"><i class="ti ti-hexagon"></i></button>
         <button class="rp-btn" data-tool="line" title="直線 L"><i class="ti ti-minus"></i></button>
+        <button class="rp-btn" data-tool="text" title="テキスト"><i class="ti ti-typography"></i></button>
 
         <div class="rp-sep"></div>
         <div class="rp-label">描画</div>
