@@ -323,6 +323,21 @@ body {
 
 .pp-sep { height: 1px; background: var(--border); margin: 10px 0 8px; }
 
+/* テキストボックス: キャンバス上のインライン編集オーバーレイ */
+.mp-text-inline-editor {
+  position: fixed;
+  z-index: 500;
+  box-sizing: border-box;
+  padding: 4px;
+  margin: 0;
+  resize: none;
+  outline: none;
+  border: 1.5px dashed #3B8AE6;
+  border-radius: 2px;
+  white-space: pre-wrap;
+  overflow: hidden;
+}
+
 .pp-btn {
   width: 100%;
   height: 26px;
