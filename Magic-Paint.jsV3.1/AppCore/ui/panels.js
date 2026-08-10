@@ -54,6 +54,16 @@ function syncProps() {
   const dashEl = document.getElementById('p-dash');
   if (dashEl) dashEl.value = selected.dash || '0';
   set('p-anim-rot', currentRotationForShape(selected), '°');
+
+  // 再生位置に最も近いKFのeasingを表示（KFが無ければ非表示）
+  const easingRow = document.getElementById('row-kf-easing');
+  const easingEl = document.getElementById('p-kf-easing');
+  if (easingRow && easingEl) {
+    const nearKf = nearestKeyframeAtCurrentTime(selected);
+    easingRow.style.display = nearKf ? 'flex' : 'none';
+    if (nearKf) easingEl.value = nearKf.easing || 'linear';
+  }
+
   const pathRow = document.getElementById('row-path-time');
   const pathDurationRow = document.getElementById('row-path-duration');
   const pathInfo = document.getElementById('path-time-info');
@@ -135,6 +145,11 @@ animRotInput?.addEventListener('input', e => {
   if (valEl) valEl.textContent = (e.target.value || '0') + '°';
 });
 document.getElementById('btn-rotation-kf')?.addEventListener('click', () => setRotationKeyframeFromInput());
+
+document.getElementById('p-kf-easing')?.addEventListener('change', e => {
+  const ok = setEasingForNearestKeyframe(e.target.value);
+  if (ok) setStatus('イージング: ' + e.target.value);
+});
 
 function updateAngleFromSpeed() {
   const speed = Number(document.getElementById('p-anim-rot-speed')?.value);
