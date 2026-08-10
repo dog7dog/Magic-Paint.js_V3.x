@@ -553,6 +553,9 @@ function getEditorAnimationItems() {
   return items;
 }
 
+// v2 KFの easing 名 → GSAPのease名
+const GSAP_EASE_MAP = { linear: 'none', easeIn: 'power2.in', easeOut: 'power2.out', easeInOut: 'power2.inOut' };
+
 function generateEditorCode() {
   // 現在のシーンからGSAPコードを生成
   const ease = 'power2.inOut';
@@ -598,17 +601,21 @@ function generateEditorCode() {
       const motionPathBase = 'autoRotate: false, curviness: 0, alignOrigin: [0.5, 0.5]';
       const propsFor = k => {
         const props = [];
-        const opa = Number(k.props.opa);
-        const rot = Number(k.props.rot);
+        const opa = Number(k.opacity);
+        const rot = Number(k.rotation);
+        const sx = Number(k.scaleX);
+        const sy = Number(k.scaleY);
         if (Number.isFinite(opa)) props.push('opacity: ' + (opa / 100).toFixed(2));
         if (Number.isFinite(rot)) props.push('rotation: ' + rot.toFixed(2));
+        if (Number.isFinite(sx)) props.push('scaleX: ' + sx.toFixed(3));
+        if (Number.isFinite(sy)) props.push('scaleY: ' + sy.toFixed(3));
         props.push("transformOrigin: '50% 50%'");
         props.push("svgOrigin: '" + Math.round(ctr.x) + ' ' + Math.round(ctr.y) + "'");
         return props;
       };
       const pointFor = k => {
-        const x = Number(k.props.x);
-        const y = Number(k.props.y);
+        const x = Number(k.x);
+        const y = Number(k.y);
         return Number.isFinite(x) && Number.isFinite(y)
           ? '{x:' + Math.round(x) + ',y:' + Math.round(y) + '}'
           : null;
@@ -628,9 +635,11 @@ function generateEditorCode() {
         const at = Math.max(0, sorted[i - 1].t).toFixed(2);
         const fromPt = pointFor(sorted[i - 1]);
         const toPt = pointFor(sorted[i]);
+        // 区間のeasingは開始側KFのものを使う（interpolation.jsのsampleKeyframesと同じ規則）
+        const segEase = GSAP_EASE_MAP[sorted[i - 1].easing] || ease;
         const segProps = [
           'duration: ' + dur,
-          "ease: '" + ease + "'",
+          "ease: '" + segEase + "'",
           ...propsFor(sorted[i])
         ];
         if (fromPt && toPt && !(s.animPath && s.animPath.length > 1)) {
