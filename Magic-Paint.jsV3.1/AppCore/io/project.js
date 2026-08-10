@@ -67,6 +67,10 @@ function deserializeProject(data) {
   shapes.push(...loadedShapes);
   // 旧形式の図形に layerId を付与
   shapes.forEach(s => { if (!s.layerId) s.layerId = 'layer-1'; });
+  // 旧KF形式({t, props:{...}})を新フラット形式へ移行
+  if (typeof migrateLegacyKeyframes === 'function') {
+    shapes.forEach(s => migrateLegacyKeyframes(s));
+  }
 
   totalDur = data.totalDur || 3;
   looping = data.looping !== undefined ? data.looping : true;
