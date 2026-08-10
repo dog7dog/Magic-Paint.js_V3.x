@@ -67,7 +67,6 @@ function drawTimeline() {
 
     // keyframes
     (s.keyframes || []).forEach(kf => {
-      if (kf.autoHold) return;
       const kx = Math.round(kf.t * PX_PER_SEC);
       const ky = y + TRACK_H / 2;
       tctx.fillStyle = s === selected ? '#D85A30' : '#3B8AE6';
@@ -125,11 +124,25 @@ document.getElementById('tl-loop').addEventListener('change', e => { looping = e
 const addKfFn = () => {
   const animOwner = getSelectedAnimationOwner();
   const startsPath = Boolean(animOwner?.animPath && animOwner.animPath.length > 1);
-  const result = upsertKeyframeAtCurrentTime({}, startsPath ? { kind: 'path-start', pathStart: true } : {});
+
+  // パスを持つ図形は、KFではなく pathStartT（パス側の開始時刻）を更新する
+  // ── パスの位置情報とプロパティKFを同じ配列に混ぜない設計にしたため
+  if (startsPath) {
+    const t = parseFloat((animT * totalDur).toFixed(2));
+    saveState();
+    animOwner.pathStartT = t;
+    markGroupAnimationOwner(animOwner);
+    renderAnimationCanvasFrame(animT);
+    syncProps(); drawTimeline(); updateCode();
+    setStatus('パス開始: ' + t.toFixed(2) + 's');
+    toast('ti-diamond', t.toFixed(2) + 's にパス開始');
+    return;
+  }
+
+  const result = upsertKeyframeAtCurrentTime({});
   if (!result) return;
-  const label = startsPath ? 'パス開始KF' : 'KF';
-  setStatus((result.existing ? label + '更新: ' : label + '追加: ') + result.t.toFixed(2) + 's');
-  toast('ti-diamond', result.t.toFixed(2) + 's に' + label + (result.existing ? '更新' : '追加'));
+  setStatus((result.existing ? 'KF更新: ' : 'KF追加: ') + result.t.toFixed(2) + 's');
+  toast('ti-diamond', result.t.toFixed(2) + 's にKF' + (result.existing ? '更新' : '追加'));
 };
 document.getElementById('tl-add-kf')?.addEventListener('click', addKfFn);
 document.getElementById('tl-del-kf')?.addEventListener('click', () => deleteKeyframeAtCurrentTime());
@@ -150,102 +163,6 @@ function setPlaybackButtonState(playing) {
       : '<i class="ti ti-player-play"></i> JS実行';
     runBtn.classList.toggle('playing', playing);
   }
-}
-
-function renderAnimationCanvasFrame(progress) {
-  const cur = progress * totalDur;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, cv.width, cv.height);
-  ctx.fillStyle = canvasBg;
-  ctx.fillRect(0, 0, cv.width, cv.height);
-
-  drawAnimatedScene(cur, progress);
-
-  shapes.forEach(s => {
-    if (!s.animPath || s.animPath.length < 2) return;
-    ctx.save();
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
-    ctx.globalAlpha = 0.35;
-    ctx.beginPath();
-    ctx.moveTo(s.animPath[0].x, s.animPath[0].y);
-    s.animPath.forEach(p => ctx.lineTo(p.x, p.y));
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  });
-}
-
-function animStep(ts) {
-  const frameInterval = 1000 / FPS;
-
-  if (ts - lastFrameDraw < frameInterval) {
-    animFrame = requestAnimationFrame(animStep);
-    return;
-  }
-
-  lastFrameDraw = ts;
-
-  if (physicsRunning) { stopAnim(); return; }
-  if (!lastTs) lastTs = ts;
-  const dt = (ts - lastTs) / 1000; lastTs = ts;
-  animT += dt / totalDur;
-  if (animT > 1) { if (looping) animT = 0; else { animT = 1; stopAnim(); return; } }
-
-  renderAnimationCanvasFrame(animT);
-
-  drawTimeline();
-  animFrame = requestAnimationFrame(animStep);
-}
-
-function startAnim(options = {}) {
-
-  if (physicsRunning) return;
-  const restart = Boolean(options && options.restart);
-  if (animating) cancelAnimationFrame(animFrame);
-  if (typeof gsap !== 'undefined') {
-    try {
-      gsap.globalTimeline.clear();
-      gsap.globalTimeline.resume();
-      gsap.globalTimeline.paused(false);
-    } catch (e) { }
-  }
-  document.getElementById('je-svg-overlay')?.remove();
-  _jeSvg = null;
-  lastFrameDraw = 0;
-  if (restart || animT >= 1) animT = 0;
-  animating = true; lastTs = null;
-  setPlaybackButtonState(true);
-  const dbg = getAnimationDebugSummary();
-  setStatus("再生中... グループ:" + dbg.animatedGroups + "/" + dbg.groups + " 単体:" + dbg.solo);
-  animFrame = requestAnimationFrame(animStep);
-}
-
-function stopAnim() {
-  animating = false;
-  cancelAnimationFrame(animFrame);
-  setPlaybackButtonState(false);
-  if (!physicsRunning) setStatus('停止');
-  renderAnimationCanvasFrame(animT);
-}
-
-function toggleAnim() { animating ? stopAnim() : startAnim(); }
-
-// ── 物理演算（削除済み）──────────────────────────────────
-function togglePhysics() {
-  setStatus('物理演算は削除済みです');
-}
-function startPhysics() {
-  setStatus('物理演算は削除済みです');
-}
-function stopPhysics() {
-  physicsRunning = false;
-  redraw();
-}
-function applyFrame(objects) {
-  // 物理演算なし
 }
 
 // ── タイムラインの高さ/折りたたみ ─────────────────────────────
