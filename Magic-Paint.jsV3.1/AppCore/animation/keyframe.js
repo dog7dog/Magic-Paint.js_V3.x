@@ -1,3 +1,11 @@
+// ══════════════════════════════════════════════════════════════
+// KFエンジン v2: データ操作
+//   shape.keyframes はフラットな1オブジェクトの配列
+//     { t, x, y, rotation, scaleX, scaleY, opacity, color, easing }
+//   補間そのものは interpolation.js の sampleKeyframes() に委譲する。
+//   Canvas描画・再生ループは playback.js 側の責務。
+// ══════════════════════════════════════════════════════════════
+
 function getAnimationCenter(s) {
   if (s?.groupId) {
     const b = getGroupBounds(s.groupId);
@@ -21,56 +29,57 @@ function markGroupAnimationOwner(s) {
   s.groupAnimOwner = true;
 }
 
+// 図形の「今のライブな見た目」をv2のフラットな形で返す（KFの影響を受けない基準値）
 function animationPropsForShape(s) {
   if (!s) return null;
   const c = getAnimationCenter(s);
   return {
-    opa: s.opa ?? 100,
-    rot: s.rot ?? 0,
+    opacity: s.opa ?? 100,
+    rotation: s.rot ?? 0,
+    scaleX: s.scaleX ?? 1,
+    scaleY: s.scaleY ?? 1,
     color: s.color,
     x: c.x,
     y: c.y
   };
 }
 
-
+// 現在の再生位置でのプロパティ（KFがあれば補間結果で上書き）
 function animationPropsForShapeAtCurrentTime(s) {
   const props = animationPropsForShape(s);
   if (!props) return null;
   const owner = getAnimationOwnerForShape(s);
   if (!owner) return props;
+
   const cur = parseFloat((animT * totalDur).toFixed(2));
-  const kfP = interpKF(owner.keyframes, cur);
+  const kfP = sampleKeyframes(owner.keyframes, cur);
   if (!kfP) return props;
 
-  const kfOpa = Number(kfP.opa);
-  const kfRot = Number(kfP.rot);
-  if (Number.isFinite(kfOpa)) props.opa = kfOpa;
-  if (Number.isFinite(kfRot)) props.rot = kfRot;
+  ['opacity', 'rotation', 'scaleX', 'scaleY'].forEach(key => {
+    const v = Number(kfP[key]);
+    if (Number.isFinite(v)) props[key] = v;
+  });
   if (kfP.color) props.color = kfP.color;
 
+  // パスがある図形は位置をパス側に任せる（KFのx/yでは動かさない）
   const useKfPosition = !(owner.animPath && owner.animPath.length > 1);
-  const kfX = Number(kfP.x);
-  const kfY = Number(kfP.y);
-  if (useKfPosition && Number.isFinite(kfX)) props.x = kfX;
-  if (useKfPosition && Number.isFinite(kfY)) props.y = kfY;
+  if (useKfPosition) {
+    const kx = Number(kfP.x), ky = Number(kfP.y);
+    if (Number.isFinite(kx)) props.x = kx;
+    if (Number.isFinite(ky)) props.y = ky;
+  }
   return props;
 }
 
 function currentRotationForShape(s) {
   const props = animationPropsForShapeAtCurrentTime(s);
-  const rot = Number(props?.rot ?? s?.rot ?? 0);
+  const rot = Number(props?.rotation ?? s?.rot ?? 0);
   return Number.isFinite(rot) ? Math.round(rot * 100) / 100 : 0;
 }
 
-function cleanupKeyframeHolds(animOwner) {
-  if (!animOwner) return;
-  if (hasUserKeyframes(animOwner)) return;
-  animOwner.keyframes = [];
-  delete animOwner._kfBaseProps;
-  if (!shapeHasAnimation(animOwner)) delete animOwner.groupAnimOwner;
-}
-
+// 現在の再生位置にKFを追加/更新する。overridesで一部プロパティだけ上書きできる
+// （例: { rotation: 180 } なら回転だけ変え、他は現在の見た目を保持）。
+// options.t で追加先の時刻を明示指定できる（省略時は現在の再生位置）。
 function upsertKeyframeAtCurrentTime(overrides = {}, options = {}) {
   if (!selected) { setStatus('図形を選択してください'); return null; }
   const animOwner = getSelectedAnimationOwner();
@@ -87,35 +96,20 @@ function upsertKeyframeAtCurrentTime(overrides = {}, options = {}) {
   saveState();
   animOwner.keyframes ||= [];
 
-  if (!hasUserKeyframes(animOwner) && targetT > 0.01) {
+  // 初めてのKFを0秒以外に追加するときは、それ以前の静止状態を
+  // 0秒地点のアンカーとして明示的に残す（相手が無いといきなり
+  // 目標値へ飛んでしまうため）。以後はここを起点に滑らかに補間される。
+  if (!animOwner.keyframes.length && targetT > 0.01) {
     const baseProps = animOwner._kfBaseProps || animationPropsForShape(selected) || props;
-    if (options.holdBefore === false) {
-      animOwner.keyframes.push({ t: 0, props: { ...baseProps } });
-    } else {
-      const holdGap = Math.max(0.001, totalDur / 10000);
-      const holdT = Math.max(0, targetT - holdGap);
-      animOwner.keyframes.push({ t: 0, props: { ...baseProps }, autoHold: true });
-      if (holdT > 0.001) {
-        animOwner.keyframes.push({ t: holdT, props: { ...baseProps }, autoHold: true });
-      }
-    }
+    animOwner.keyframes.push({ t: 0, ...baseProps, easing: 'linear' });
   }
 
-  const keyframeMeta = {};
-  if (options.kind) keyframeMeta.kind = options.kind;
-  if (options.pathStart) keyframeMeta.pathStart = true;
-
-  const existing = animOwner.keyframes.find(k => !k.autoHold && Math.abs(k.t - targetT) < 0.01);
+  const existing = animOwner.keyframes.find(k => Math.abs(k.t - targetT) < 0.01);
   if (existing) {
-    existing.props = props;
-    delete existing.autoHold;
-    if (options.kind) existing.kind = options.kind;
-    if (options.pathStart) existing.pathStart = true;
-    if (options.kind === 'rotation') delete existing.pathStart;
+    Object.assign(existing, props, { t: targetT, easing: existing.easing || 'linear' });
   } else {
-    animOwner.keyframes.push({ t: targetT, props, ...keyframeMeta });
+    animOwner.keyframes.push({ t: targetT, ...props, easing: 'linear' });
   }
-  if (options.pathStart) animOwner.pathStartT = targetT;
 
   animOwner.autoRotate = 0;
   markGroupAnimationOwner(animOwner);
@@ -133,10 +127,10 @@ function deleteKeyframeAtCurrentTime() {
   if (!animOwner?.keyframes?.length) { setStatus('削除するKFがありません'); return; }
 
   const t = parseFloat((animT * totalDur).toFixed(2));
-  const userKfs = animOwner.keyframes.filter(k => !k.autoHold);
-  if (!userKfs.length) { setStatus('削除するKFがありません'); return; }
+  const kfs = userKeyframesForShape(animOwner);
+  if (!kfs.length) { setStatus('削除するKFがありません'); return; }
 
-  const nearest = userKfs
+  const nearest = kfs
     .map(k => ({ k, d: Math.abs(Number(k.t) - t) }))
     .sort((a, b) => a.d - b.d)[0];
   const tolerance = Math.max(0.2, 3 / Math.max(1, FPS || 24));
@@ -148,14 +142,17 @@ function deleteKeyframeAtCurrentTime() {
 
   saveState();
   animOwner.keyframes = animOwner.keyframes.filter(k => k !== nearest.k);
-  const removedPathStart = nearest.k.pathStart || nearest.k.kind === 'path-start' ||
-    Math.abs(Number(animOwner.pathStartT) - Number(nearest.k.t)) < 0.01;
-  if (removedPathStart) {
-    const nextPathStart = userKeyframesForShape(animOwner).find(k => k.pathStart || k.kind === 'path-start');
-    if (nextPathStart) animOwner.pathStartT = Number(nextPathStart.t) || 0;
-    else delete animOwner.pathStartT;
+
+  // 残り1点だけ、しかもそれが暗黙のベースアンカー(0秒)なら
+  // アニメーションとして意味を持たないので一緒に片付ける
+  if (animOwner.keyframes.length === 1 && animOwner.keyframes[0].t <= 0.01) {
+    animOwner.keyframes = [];
   }
-  cleanupKeyframeHolds(animOwner);
+  if (!animOwner.keyframes.length) {
+    delete animOwner._kfBaseProps;
+    if (!shapeHasAnimation(animOwner)) delete animOwner.groupAnimOwner;
+  }
+
   renderAnimationCanvasFrame(animT);
   syncProps();
   drawTimeline();
@@ -195,20 +192,18 @@ function setRotationKeyframeFromInput() {
     animOwner.keyframes ||= [];
     animOwner.autoRotate = 0;
 
-    const existingStart = animOwner.keyframes.find(k => !k.autoHold && Math.abs(Number(k.t) - startT) < 0.01);
+    const existingStart = animOwner.keyframes.find(k => Math.abs(Number(k.t) - startT) < 0.01);
     if (existingStart) {
-      existingStart.props = { ...existingStart.props, rot: startRot };
-      delete existingStart.autoHold;
+      Object.assign(existingStart, startProps, { t: startT, rotation: startRot, easing: existingStart.easing || 'linear' });
     } else {
-      animOwner.keyframes.push({ t: startT, props: { ...(startProps || {}), rot: startRot } });
+      animOwner.keyframes.push({ t: startT, ...startProps, rotation: startRot, easing: 'linear' });
     }
 
-    const existingEnd = animOwner.keyframes.find(k => !k.autoHold && Math.abs(Number(k.t) - endT) < 0.01);
+    const existingEnd = animOwner.keyframes.find(k => Math.abs(Number(k.t) - endT) < 0.01);
     if (existingEnd) {
-      existingEnd.props = { ...existingEnd.props, rot: rotVal };
-      delete existingEnd.autoHold;
+      Object.assign(existingEnd, startProps, { t: endT, rotation: rotVal, easing: existingEnd.easing || 'linear' });
     } else {
-      animOwner.keyframes.push({ t: endT, props: { ...(startProps || {}), rot: rotVal }, kind: 'rotation' });
+      animOwner.keyframes.push({ t: endT, ...startProps, rotation: rotVal, easing: 'linear' });
     }
 
     markGroupAnimationOwner(animOwner);
@@ -222,11 +217,11 @@ function setRotationKeyframeFromInput() {
     return;
   }
 
-  // 時間未指定: 現在位置に単独KF追加（従来動作）
+  // 時間未指定: 現在位置に単独KF追加（従来動作。回転だけ上書きする）
   const currentT = startT;
   const firstRotationKf = !hasUserKeyframes(animOwner) && currentT <= 0.01;
   const targetT = firstRotationKf ? totalDur : currentT;
-  const result = upsertKeyframeAtCurrentTime({ rot: rotVal }, { holdBefore: false, t: targetT, kind: 'rotation' });
+  const result = upsertKeyframeAtCurrentTime({ rotation: rotVal }, { t: targetT });
   if (!result) return;
   if (firstRotationKf && totalDur > 0) {
     animT = Math.max(0, Math.min(1, targetT / totalDur));
@@ -237,11 +232,37 @@ function setRotationKeyframeFromInput() {
   toast('ti-rotate-clockwise', result.t.toFixed(2) + 's に ' + rotVal + '°');
 }
 
+// 選択中KF（再生位置に最も近いもの）のeasingを変更する
+function setEasingForNearestKeyframe(easingName) {
+  const animOwner = getSelectedAnimationOwner();
+  const kfs = userKeyframesForShape(animOwner);
+  if (!kfs.length) return false;
+  const t = parseFloat((animT * totalDur).toFixed(2));
+  const nearest = kfs.map(k => ({ k, d: Math.abs(Number(k.t) - t) })).sort((a, b) => a.d - b.d)[0];
+  const tolerance = Math.max(0.2, 3 / Math.max(1, FPS || 24));
+  if (!nearest || nearest.d > tolerance) return false;
+
+  saveState();
+  nearest.k.easing = easingName;
+  renderAnimationCanvasFrame(animT);
+  drawTimeline();
+  updateCode();
+  return true;
+}
+
+// 再生位置に最も近いKF（無ければnull）。プロパティパネルのeasing表示用。
+function nearestKeyframeAtCurrentTime(s) {
+  const animOwner = getAnimationOwnerForShape(s);
+  const kfs = userKeyframesForShape(animOwner);
+  if (!kfs.length) return null;
+  const t = parseFloat((animT * totalDur).toFixed(2));
+  const nearest = kfs.map(k => ({ k, d: Math.abs(Number(k.t) - t) })).sort((a, b) => a.d - b.d)[0];
+  const tolerance = Math.max(0.2, 3 / Math.max(1, FPS || 24));
+  return nearest && nearest.d <= tolerance ? nearest.k : null;
+}
 
 function userKeyframesForShape(s) {
-  return (s?.keyframes || [])
-    .filter(k => !k.autoHold)
-    .sort((a, b) => a.t - b.t);
+  return (s?.keyframes || []).slice().sort((a, b) => a.t - b.t);
 }
 
 function hasUserKeyframes(s) {
@@ -249,11 +270,7 @@ function hasUserKeyframes(s) {
 }
 
 function getPathTimeRange(s) {
-  const pathStartT = Number(s?.pathStartT);
-  const pathStartKf = userKeyframesForShape(s).find(k => k.pathStart || k.kind === 'path-start');
-  let start = Number.isFinite(pathStartT)
-    ? pathStartT
-    : (pathStartKf ? Number(pathStartKf.t) : 0);
+  let start = Number.isFinite(Number(s?.pathStartT)) ? Number(s.pathStartT) : 0;
   let end = Number.isFinite(Number(s?.pathEndT)) ? Number(s.pathEndT) : totalDur;
   start = Math.max(0, Math.min(totalDur, start));
   end = Math.max(0, Math.min(totalDur, end));
@@ -302,11 +319,6 @@ function setPathDurationFromPlayhead() {
 
   animOwner.pathStartT = startT;
   animOwner.pathEndT = endT;
-  animOwner.keyframes ||= [];
-  animOwner.keyframes.forEach(k => {
-    if (k.pathStart) delete k.pathStart;
-    if (k.kind === 'path-start') delete k.kind;
-  });
   markGroupAnimationOwner(animOwner);
 
   renderAnimationCanvasFrame(animT);
@@ -346,78 +358,6 @@ function getAnimationOwnerForShape(s) {
   return s;
 }
 
-function applyAnimationTransform(owner, center, cur, progress) {
-  const kfP = interpKF(owner.keyframes, cur);
-  const pathProgress = getPathProgressForTime(owner, cur, progress);
-  const pos = getPathPos(pathProgress ?? progress, owner.animPath || null);
-  const pathDx = pos && owner.animPath && owner.animPath[0] ? pos.x - owner.animPath[0].x : 0;
-  const pathDy = pos && owner.animPath && owner.animPath[0] ? pos.y - owner.animPath[0].y : 0;
-  const useKfPosition = !(owner.animPath && owner.animPath.length > 1);
-  const kfDx = useKfPosition && kfP && Number.isFinite(kfP.x) ? kfP.x - center.x : 0;
-  const kfDy = useKfPosition && kfP && Number.isFinite(kfP.y) ? kfP.y - center.y : 0;
-  const dx = pathDx + kfDx;
-  const dy = pathDy + kfDy;
-
-  if (dx || dy) {
-    ctx.translate(dx, dy);
-  }
-
-  const kfRot = kfP && Number.isFinite(Number(kfP.rot)) ? Number(kfP.rot) : null;
-  if (kfRot !== null) {
-    ctx.translate(center.x, center.y);
-    ctx.rotate(((kfRot - (owner.rot || 0)) * Math.PI) / 180);
-    ctx.translate(-center.x, -center.y);
-  }
-
-  if (owner.autoRotate) {
-    ctx.translate(center.x, center.y);
-    ctx.rotate(owner.autoRotate * cur * Math.PI / 180);
-    ctx.translate(-center.x, -center.y);
-  }
-
-  return kfP;
-}
-
-function offsetShapeForAnimation(s, dx, dy) {
-  if (!dx && !dy) return s;
-
-  const copy = { ...s };
-  if (s.pts) copy.pts = s.pts.map(p => ({ x: p.x + dx, y: p.y + dy }));
-  if (s.snap) copy.snap = s.snap;
-
-  if (s.type === "rect") {
-    copy.x = s.x + dx;
-    copy.y = s.y + dy;
-  } else if (["circle", "triangle", "polygon"].includes(s.type)) {
-    copy.cx = s.cx + dx;
-    copy.cy = s.cy + dy;
-  } else if (s.type === "line") {
-    copy.x1 = s.x1 + dx;
-    copy.y1 = s.y1 + dy;
-    copy.x2 = s.x2 + dx;
-    copy.y2 = s.y2 + dy;
-  } else if (!s.pts) {
-    const renderer = window.AnimationApp?.customRenderers?.[s.type];
-    if (renderer && renderer.move) renderer.move(copy, dx, dy);
-  }
-
-  return copy;
-}
-
-function drawAnimatedShape(s, kfP = null) {
-  if (!kfP) {
-    drawShape(s, ctx);
-    return;
-  }
-
-  const kfOpa = Number(kfP.opa);
-  drawShape({
-    ...s,
-    opa: Number.isFinite(kfOpa) ? kfOpa : s.opa,
-    color: kfP.color || s.color
-  }, ctx);
-}
-
 function getAnimationDebugSummary() {
   const groups = [...new Set(shapes.filter(s => s.groupId).map(s => s.groupId))];
   const animatedGroups = groups.filter(id => {
@@ -428,87 +368,32 @@ function getAnimationDebugSummary() {
   return { groups: groups.length, animatedGroups, solo };
 }
 
-function drawAnimatedScene(cur, progress) {
-  const drawnGroups = new Set();
+// ── 旧データ形式(v1)からの移行 ──────────────────────────────────
+// 旧: keyframes = [{ t, props: {opa, rot, x, y, color}, autoHold?, kind?, pathStart? }]
+// 新: keyframes = [{ t, opacity, rotation, x, y, color, easing }]
+function migrateLegacyKeyframes(shape) {
+  if (!shape || !Array.isArray(shape.keyframes) || !shape.keyframes.length) return;
+  const isLegacy = shape.keyframes.some(k => k && typeof k.props === 'object');
+  if (!isLegacy) return;
 
-  const drawWithOwner = (items, owner, center) => {
-    ctx.save();
-    const kfP = applyAnimationTransform(owner, center, cur, progress);
-    items.forEach(item => drawAnimatedShape(item, kfP));
-    ctx.restore();
-  };
-
-  shapes.forEach(s => {
-    if (s.hidden) return;
-
-    if (s.groupId) {
-      if (drawnGroups.has(s.groupId)) return;
-      drawnGroups.add(s.groupId);
-
-      const members = getGroupMembers(s.groupId);
-      const owner = getGroupAnimationOwner(s.groupId);
-      const b = getGroupBounds(s.groupId);
-      if (!members.length || !owner || !b) return;
-
-      drawWithOwner(members, owner, { x: b.x + b.w / 2, y: b.y + b.h / 2 });
-      return;
-    }
-
-    drawWithOwner([s], s, getCenter(s));
-  });
-}
-
-// ── キーフレーム補間 ─────────────────────────────────────────
-function interpKF(kfs, t) {
-  if (!kfs || !kfs.length) return null;
-  const sorted = [...kfs].sort((a, b) => a.t - b.t);
-  const before = sorted.filter(k => k.t <= t);
-  const after = sorted.filter(k => k.t > t);
-  if (!before.length) return null;
-  if (!after.length) return { ...sorted[sorted.length - 1].props };
-  const k0 = before[before.length - 1], k1 = after[0];
-  const f = (t - k0.t) / (k1.t - k0.t);
-  const lerp = key => {
-    const a = Number(k0.props[key]);
-    const b = Number(k1.props[key]);
-    return Number.isFinite(a) && Number.isFinite(b) ? a + (b - a) * f : undefined;
-  };
-  return {
-    opa: lerp('opa'),
-    rot: lerp('rot'),
-    x: lerp('x'),
-    y: lerp('y'),
-    color: k0.props.color,
-  };
-}
-
-function getPathPos(t, path) {
-  if (!path || path.length < 2) return null;
-
-  // 座標系は変えない。保存された animPath をそのまま使う。
-  // 点の番号ではなく線の長さで補間するだけにする。
-  const segs = [];
-  let total = 0;
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1];
-    const b = path[i];
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 0.001) continue;
-    segs.push({ a, b, len });
-    total += len;
+  // 旧仕様では「パス開始」を兼ねたKFがあった。pathStartT が未設定なら引き継ぐ。
+  if (!Number.isFinite(Number(shape.pathStartT))) {
+    const pathStartKf = shape.keyframes.find(k => k.pathStart || k.kind === 'path-start');
+    if (pathStartKf) shape.pathStartT = Number(pathStartKf.t) || 0;
   }
-  if (!segs.length) return path[0];
 
-  let d = Math.max(0, Math.min(1, t)) * total;
-  for (const seg of segs) {
-    if (d <= seg.len) {
-      const f = d / seg.len;
-      return {
-        x: seg.a.x + (seg.b.x - seg.a.x) * f,
-        y: seg.a.y + (seg.b.y - seg.a.y) * f
-      };
-    }
-    d -= seg.len;
-  }
-  return path[path.length - 1];
+  shape.keyframes = shape.keyframes
+    .filter(k => !k.autoHold) // 自動生成された保持用フレームは新方式では不要
+    .map(k => {
+      const p = k.props || {};
+      const out = { t: Number(k.t) || 0, easing: 'linear' };
+      if (Number.isFinite(Number(p.opa))) out.opacity = Number(p.opa);
+      if (Number.isFinite(Number(p.rot))) out.rotation = Number(p.rot);
+      if (Number.isFinite(Number(p.x))) out.x = Number(p.x);
+      if (Number.isFinite(Number(p.y))) out.y = Number(p.y);
+      if (p.color) out.color = p.color;
+      return out;
+    });
+
+  delete shape._kfBaseProps; // 旧形式のprops構造で保存されていたため作り直す
 }
