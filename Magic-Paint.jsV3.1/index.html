@@ -188,6 +188,7 @@
           <div class="pp-sep"></div>
           <div class="pp-sec-title">アニメーション</div>
           <button class="pp-btn" id="btn-set-path"><i class="ti ti-route"></i> パスを描く</button>
+          <button class="pp-btn" id="btn-toggle-rotation-anim"><i class="ti ti-rotate-clockwise"></i> アニメーション回転</button>
           <button class="pp-btn danger" id="btn-clear-anim"><i class="ti ti-x"></i> パス削除</button>
           <div class="pp-row path-time-row" id="row-path-time" style="display:none">
             <span class="pp-label">パス時間</span>
@@ -201,18 +202,18 @@
             <span class="pp-val">s</span>
             <button class="pp-mini-btn" id="btn-path-duration-apply" title="赤い再生位置から指定秒数でパスを実行"><i class="ti ti-clock-play"></i></button>
           </div>
-          <div class="pp-row" id="row-anim-rot" style="margin-top:6px">
+          <div class="pp-row" id="row-anim-rot" style="margin-top:6px; display:none">
             <span class="pp-label">回転角度</span>
             <input type="number" id="p-anim-rot" min="-3600" max="3600" step="1" value="0">
             <span class="pp-val" id="p-anim-rot-v">0°</span>
             <button class="pp-mini-btn" id="btn-rotation-kf" title="現在の再生位置にこの角度の回転KFを追加/更新"><i class="ti ti-diamond"></i></button>
           </div>
-          <div class="pp-row" id="row-anim-rot-speed" style="margin-top:2px">
+          <div class="pp-row" id="row-anim-rot-speed" style="margin-top:2px; display:none">
             <span class="pp-label">回転速度</span>
             <input type="number" id="p-anim-rot-speed" min="-3600" max="3600" step="0.1" value="0">
             <span class="pp-val">°/s</span>
           </div>
-          <div class="pp-row" id="row-anim-rot-dur" style="margin-top:2px">
+          <div class="pp-row" id="row-anim-rot-dur" style="margin-top:2px; display:none">
             <span class="pp-label">回転時間</span>
             <input type="number" id="p-anim-rot-dur" min="0.05" max="120" step="0.1" value="1">
             <span class="pp-val">s</span>
