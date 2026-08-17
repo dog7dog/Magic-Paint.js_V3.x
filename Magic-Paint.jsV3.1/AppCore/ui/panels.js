@@ -1,3 +1,7 @@
+// 「アニメーション回転」パネル(回転角度/回転速度/回転時間)の開閉状態。
+// アニメパスの「パスを描く」ボタンと同じ考え方で、押すまでは隠しておく。
+let rotationAnimPanelOpen = false;
+
 // ── プロパティパネル同期 ──────────────────────────────────────
 function syncProps() {
   const empty = document.getElementById('panel-empty');
@@ -54,6 +58,14 @@ function syncProps() {
   const dashEl = document.getElementById('p-dash');
   if (dashEl) dashEl.value = selected.dash || '0';
   set('p-anim-rot', currentRotationForShape(selected), '°');
+
+  // アニメーション回転: 「アニメーション回転」ボタンで開くまでは隠す（アニメパスと同じ考え方）
+  const rotToggleBtn = document.getElementById('btn-toggle-rotation-anim');
+  const rotDisplay = rotationAnimPanelOpen ? 'flex' : 'none';
+  document.getElementById('row-anim-rot').style.display = rotDisplay;
+  document.getElementById('row-anim-rot-speed').style.display = rotDisplay;
+  document.getElementById('row-anim-rot-dur').style.display = rotDisplay;
+  rotToggleBtn?.classList.toggle('active', rotationAnimPanelOpen);
 
   // 再生位置に最も近いKFのeasingを表示（KFが無ければ非表示）
   const easingRow = document.getElementById('row-kf-easing');
@@ -200,6 +212,11 @@ function toggleTag(key) { setStatus('物理演算は削除済みです'); }
 document.getElementById('btn-set-path').addEventListener('click', () => {
   if (!selected) { setStatus('図形を選択してください'); return; }
   setTool('path');
+});
+document.getElementById('btn-toggle-rotation-anim')?.addEventListener('click', () => {
+  if (!selected) { setStatus('図形を選択してください'); return; }
+  rotationAnimPanelOpen = !rotationAnimPanelOpen;
+  syncProps();
 });
 document.getElementById('btn-clear-anim').addEventListener('click', () => {
   if (!selected) return;
