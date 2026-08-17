@@ -103,13 +103,19 @@ function setTool(t) {
   document.querySelectorAll('.rp-btn[data-tool]').forEach(b => {
     b.classList.toggle('active', b.dataset.tool === t);
   });
-  cv.style.cursor = t === 'select' ? 'default' : 'crosshair';
+  // 'rotation' はキャンバス上に何も描かないアニメーション設定用の疑似ツールなので、
+  // 選択ツールと同じく通常カーソルのままにする
+  cv.style.cursor = (t === 'select' || t === 'rotation') ? 'default' : 'crosshair';
   if (t !== 'path') { /* パス以外は選択維持しない */ }
   if (t === 'path' && selected) {
     setStatus('パス: 赤い再生位置の時刻から開始 / 図形からドラッグ / ダブルクリックで確定');
   } else if (t === 'path') {
     setStatus('図形を選択してからパスを描いてください');
+  } else if (t === 'rotation') {
+    setStatus(selected ? '回転角度/速度/時間を左パネルで設定してください' : '図形を選択してから回転アニメーションを設定してください');
   }
+  // 左パネルのアニメパス/回転オプション表示を選択中のツールに合わせて更新
+  if (typeof syncProps === 'function') syncProps();
   redraw();
 }
 
