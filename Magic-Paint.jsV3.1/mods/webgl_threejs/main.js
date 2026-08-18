@@ -17,14 +17,15 @@
     description: "画像レイヤーを追加し、現在のシーンをThree.jsのCanvasTextureで再生・JS書き出しします。"
   });
 
-  // テキストエディタ/AI生成コードから libs.three / libs.cannon として使えるようにする
-  if (typeof api.registerLibrary === "function") {
-    api.registerLibrary("three", {
+  // テキストエディタ/AI生成コードから api.libraries.get('three'/'cannon') として
+  // 使えるように宣言しておく（declare()は登録のみ・実際の読み込みはget()の初回呼び出し時）
+  if (api.libraries?.declare) {
+    api.libraries.declare("three", {
       name: "Three.js",
       description: "3Dグラフィックスライブラリ",
       load: loadThree
     });
-    api.registerLibrary("cannon", {
+    api.libraries.declare("cannon", {
       name: "Cannon.js",
       description: "3D物理演算ライブラリ",
       load: loadCannon
