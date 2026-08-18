@@ -187,9 +187,9 @@
 
           <div class="pp-sep"></div>
           <div class="pp-sec-title">アニメーション</div>
-          <button class="pp-btn" id="btn-set-path"><i class="ti ti-route"></i> パスを描く</button>
-          <button class="pp-btn" id="btn-toggle-rotation-anim"><i class="ti ti-rotate-clockwise"></i> アニメーション回転</button>
-          <button class="pp-btn danger" id="btn-clear-anim"><i class="ti ti-x"></i> パス削除</button>
+          <!-- 右パネルの「アニメパス」「アニメーション回転」ツールで選んだ方に
+               応じて、ここから下の内容を切り替える -->
+          <button class="pp-btn danger" id="btn-clear-anim" style="display:none"><i class="ti ti-x"></i> パス削除</button>
           <div class="pp-row path-time-row" id="row-path-time" style="display:none">
             <span class="pp-label">パス時間</span>
             <span class="pp-val path-time-info" id="path-time-info">0.00s - 3.00s</span>
@@ -263,7 +263,11 @@
         <div class="rp-sep"></div>
         <div class="rp-label">操作</div>
         <button class="rp-btn" data-tool="eraser" title="消しゴム E"><i class="ti ti-eraser"></i></button>
+
+        <div class="rp-sep"></div>
+        <div class="rp-label">アニメーション</div>
         <button class="rp-btn" data-tool="path" title="アニメパス"><i class="ti ti-route"></i></button>
+        <button class="rp-btn" data-tool="rotation" title="アニメーション回転"><i class="ti ti-rotate-clockwise"></i></button>
 
       </div>
     </div>
