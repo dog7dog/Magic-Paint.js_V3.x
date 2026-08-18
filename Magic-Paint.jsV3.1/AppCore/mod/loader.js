@@ -120,6 +120,14 @@ function _injectZipModStyles(manifest, files, assetMap) {
 }
 
 function _executeZipMod(manifest, files, assetMap) {
+  // manifest.json で宣言された外部ライブラリを Library Manager に登録（登録のみ、遅延読み込み）
+  if (window.AnimationApp?.libraries && Array.isArray(manifest.libraries)) {
+    for (const lib of manifest.libraries) {
+      if (!lib || !lib.id) continue;
+      window.AnimationApp.libraries.declare(lib.id, { ...lib, source: 'mod.json' });
+    }
+  }
+
   const scriptPaths = (manifest.scripts && manifest.scripts.length)
     ? manifest.scripts
     : ['main.js'];
@@ -315,6 +323,15 @@ async function loadMods() {
     for (const mod of mods) {
       if (!LoadedMods.some(m => m.id === mod.id)) LoadedMods.push(mod);
       if (mod.enabled === false) { console.log('[MOD disabled]', mod.id); continue; }
+
+      // mod.json で宣言された外部ライブラリを Library Manager に登録
+      // （ここでは登録だけ。実際の読み込みは get() が最初に呼ばれた時）
+      if (window.AnimationApp?.libraries && Array.isArray(mod.libraries)) {
+        for (const lib of mod.libraries) {
+          if (!lib || !lib.id) continue;
+          window.AnimationApp.libraries.declare(lib.id, { ...lib, source: 'mod.json' });
+        }
+      }
 
       for (const href of mod.styles || []) {
         if (document.querySelector(`link[data-mod-style="${href}"]`)) continue;
