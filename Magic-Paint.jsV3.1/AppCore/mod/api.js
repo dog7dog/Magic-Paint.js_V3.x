@@ -1,4 +1,60 @@
 // ══════════════════════════════════════════════════════════════
+// 外部ライブラリ管理: window.AnimationApp.libraries
+//   mod.json / manifest.json（宣言）または MOD の main.js（手続き）から
+//   登録され、ここが唯一の「外部ライブラリを読み込む経路」になる。
+//   テキストエディタ/AI生成コードは get()/has()/list() だけを使う想定。
+//   未登録のライブラリをエディタ側が勝手にCDNから取りに行くことはしない。
+// ══════════════════════════════════════════════════════════════
+const _libRegistry = {}; // id -> { id, name, description, globalName, source, load, _promise }
+
+// opts.load が渡されていればそれをそのまま使う（cannon.jsのUMD読み込みのような
+// カスタム処理向け）。無ければ opts.type/url から汎用ローダーを組み立てる。
+function _makeLibLoader(id, opts) {
+  if (typeof opts.load === 'function') return opts.load;
+
+  const { type, url, globalName } = opts;
+  if (!url) {
+    return () => Promise.reject(new Error('load関数もurlも指定されていません: ' + id));
+  }
+
+  // ES Module は import() で動的ロード（通常のスクリプト環境からでも使える）
+  if (type === 'module') {
+    return () => import(/* webpackIgnore: true */ url);
+  }
+
+  // 既定: 従来型 <script> タグ読み込み（UMDグローバルビルド向け）
+  return () => new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-mp-lib="' + id + '"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true));
+      existing.addEventListener('error', reject);
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = url;
+    s.dataset.mpLib = id;
+    s.onload = () => resolve(globalName ? window[globalName] : true);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// 登録のみ行う（読み込みはしない）。mod.json宣言・MOD初期化時の
+// 「使えるようにしておく」用途はこちらを使う。
+function _registerLib(id, opts = {}, source = 'mod') {
+  if (!id) return;
+  _libRegistry[id] = {
+    id,
+    name: opts.name || id,
+    description: opts.description || '',
+    globalName: opts.globalName || null,
+    source, // 'mod.json' | 'mod'（デバッグ・将来のUI表示用）
+    load: _makeLibLoader(id, opts),
+    _promise: null
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
 // MOD API: window.AnimationApp
 // ══════════════════════════════════════════════════════════════
 window.AnimationApp = {
@@ -14,8 +70,41 @@ window.AnimationApp = {
     left: null
   },
 
-  // 外部ライブラリ管理(AnimationApp.libraries.load/get/has/list)は
-  // AppCore/mod/libraries.js が担当する（この直後に読み込まれ、ここに追加される）。
+  libraries: {
+    // MOD側の入口: 宣言 + 即読み込み。
+    // 例: const CANNON = await api.libraries.load({ name:'cannon', type:'module', url:'...' });
+    load(opts) {
+      if (!opts || !(opts.id || opts.name)) {
+        return Promise.reject(new Error('id または name は必須です'));
+      }
+      const id = opts.id || opts.name;
+      if (!_libRegistry[id]) _registerLib(id, opts, 'mod');
+      return this.get(id);
+    },
+
+    // MOD側の入口その2: 「使えるようにだけしておく」宣言のみの登録（即読み込みしない）。
+    // mod.json / manifest.json の libraries 宣言も内部的にこれを使う。
+    declare(id, opts = {}) {
+      if (!_libRegistry[id]) _registerLib(id, opts, opts.source || 'mod');
+    },
+
+    // 登録済みライブラリを取得する（未読み込みなら初回だけ読み込み、以降はキャッシュを返す）。
+    // テキストエディタ/AI生成コードはこれだけを使う想定。
+    get(id) {
+      const entry = _libRegistry[id];
+      if (!entry) return Promise.reject(new Error('未登録のライブラリです: ' + id));
+      if (!entry._promise) entry._promise = Promise.resolve(entry.load());
+      return entry._promise;
+    },
+
+    has(id) {
+      return Boolean(_libRegistry[id]);
+    },
+
+    list() {
+      return Object.values(_libRegistry).map(({ id, name, description, source, globalName }) => ({ id, name, description, source, globalName }));
+    }
+  },
 
   registerMod(mod) {
     if (!mod || !mod.id) return;
