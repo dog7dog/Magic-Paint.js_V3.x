@@ -1,7 +1,3 @@
-// 「アニメーション回転」パネル(回転角度/回転速度/回転時間)の開閉状態。
-// アニメパスの「パスを描く」ボタンと同じ考え方で、押すまでは隠しておく。
-let rotationAnimPanelOpen = false;
-
 // ── プロパティパネル同期 ──────────────────────────────────────
 function syncProps() {
   const empty = document.getElementById('panel-empty');
@@ -59,13 +55,12 @@ function syncProps() {
   if (dashEl) dashEl.value = selected.dash || '0';
   set('p-anim-rot', currentRotationForShape(selected), '°');
 
-  // アニメーション回転: 「アニメーション回転」ボタンで開くまでは隠す（アニメパスと同じ考え方）
-  const rotToggleBtn = document.getElementById('btn-toggle-rotation-anim');
-  const rotDisplay = rotationAnimPanelOpen ? 'flex' : 'none';
+  // アニメーション回転/アニメパス: 右パネルでどちらのツールを選んでいるかで
+  // 左パネルのオプション表示を切り替える（右パネルのアニメパス/回転ボタンと対）
+  const rotDisplay = tool === 'rotation' ? 'flex' : 'none';
   document.getElementById('row-anim-rot').style.display = rotDisplay;
   document.getElementById('row-anim-rot-speed').style.display = rotDisplay;
   document.getElementById('row-anim-rot-dur').style.display = rotDisplay;
-  rotToggleBtn?.classList.toggle('active', rotationAnimPanelOpen);
 
   // 再生位置に最も近いKFのeasingを表示（KFが無ければ非表示）
   const easingRow = document.getElementById('row-kf-easing');
@@ -76,11 +71,15 @@ function syncProps() {
     if (nearKf) easingEl.value = nearKf.easing || 'linear';
   }
 
+  const isPathTool = tool === 'path';
+  const clearAnimBtn = document.getElementById('btn-clear-anim');
+  if (clearAnimBtn) clearAnimBtn.style.display = isPathTool ? 'flex' : 'none';
+
   const pathRow = document.getElementById('row-path-time');
   const pathDurationRow = document.getElementById('row-path-duration');
   const pathInfo = document.getElementById('path-time-info');
   if (pathRow && pathInfo) {
-    const hasPath = Boolean(animOwner?.animPath && animOwner.animPath.length > 1);
+    const hasPath = isPathTool && Boolean(animOwner?.animPath && animOwner.animPath.length > 1);
     pathRow.style.display = hasPath ? 'flex' : 'none';
     if (pathDurationRow) pathDurationRow.style.display = hasPath ? 'flex' : 'none';
     if (hasPath) {
@@ -209,15 +208,8 @@ document.getElementById('p-path-duration')?.addEventListener('change', () => set
 function toggleTag(key) { setStatus('物理演算は削除済みです'); }
 
 // アニメーションボタン
-document.getElementById('btn-set-path').addEventListener('click', () => {
-  if (!selected) { setStatus('図形を選択してください'); return; }
-  setTool('path');
-});
-document.getElementById('btn-toggle-rotation-anim')?.addEventListener('click', () => {
-  if (!selected) { setStatus('図形を選択してください'); return; }
-  rotationAnimPanelOpen = !rotationAnimPanelOpen;
-  syncProps();
-});
+// 「アニメパス」「アニメーション回転」の開始自体は右パネルの
+// data-tool="path" / data-tool="rotation" ボタン（events.jsの汎用ハンドラ）が担う。
 document.getElementById('btn-clear-anim').addEventListener('click', () => {
   if (!selected) return;
   const animOwner = getSelectedAnimationOwner();
