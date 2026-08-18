@@ -71,6 +71,10 @@ function deserializeProject(data) {
   if (typeof migrateLegacyKeyframes === 'function') {
     shapes.forEach(s => migrateLegacyKeyframes(s));
   }
+  // パスの時間指定(pathStartT/pathEndTスカラー)をpathProgress KFへ移行
+  if (typeof migratePathTimingScalars === 'function') {
+    shapes.forEach(s => migratePathTimingScalars(s));
+  }
 
   totalDur = data.totalDur || 3;
   looping = data.looping !== undefined ? data.looping : true;
