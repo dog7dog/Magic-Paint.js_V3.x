@@ -75,21 +75,23 @@ function syncProps() {
   const clearAnimBtn = document.getElementById('btn-clear-anim');
   if (clearAnimBtn) clearAnimBtn.style.display = isPathTool ? 'flex' : 'none';
 
-  const pathRow = document.getElementById('row-path-time');
   const pathDurationRow = document.getElementById('row-path-duration');
-  const pathInfo = document.getElementById('path-time-info');
-  if (pathRow && pathInfo) {
+  const pathSpeedRow = document.getElementById('row-path-speed');
+  if (pathDurationRow) {
     const hasPath = isPathTool && Boolean(animOwner?.animPath && animOwner.animPath.length > 1);
-    pathRow.style.display = hasPath ? 'flex' : 'none';
-    if (pathDurationRow) pathDurationRow.style.display = hasPath ? 'flex' : 'none';
+    pathDurationRow.style.display = hasPath ? 'flex' : 'none';
+    if (pathSpeedRow) pathSpeedRow.style.display = hasPath ? 'flex' : 'none';
     if (hasPath) {
       const range = getPathTimeRange(animOwner);
       const seconds = Math.max(0.05, range.end - range.start);
-      const hasKf = hasUserKeyframes(animOwner);
-      pathInfo.textContent = (hasKf ? 'KF ' : '') + range.start.toFixed(2) + 's -> ' + range.end.toFixed(2) + 's';
       const durInput = document.getElementById('p-path-duration');
       if (durInput && document.activeElement !== durInput) {
         durInput.value = seconds.toFixed(2);
+      }
+      const speedInput = document.getElementById('p-path-speed');
+      if (speedInput && document.activeElement !== speedInput) {
+        const len = getPathLength(animOwner.animPath);
+        speedInput.value = Math.round(len / seconds);
       }
     }
   }
@@ -181,35 +183,21 @@ document.getElementById('p-anim-rot-dur')?.addEventListener('input', () => {
 });
 
 
-document.getElementById('btn-path-start-now')?.addEventListener('click', () => {
-  const animOwner = getSelectedAnimationOwner();
-  if (!animOwner?.animPath || animOwner.animPath.length < 2) return;
-  addKfFn();
-  syncProps(); drawTimeline(); updateCode();
-  const range = getPathTimeRange(animOwner);
-  setStatus('パス開始KF: ' + range.start.toFixed(2) + 's');
-});
-
-document.getElementById('btn-path-end-now')?.addEventListener('click', () => {
-  const animOwner = getSelectedAnimationOwner();
-  if (!animOwner?.animPath || animOwner.animPath.length < 2) return;
-  saveState();
-  const range = getPathTimeRange(animOwner);
-  let endT = Math.max(0.01, parseFloat((animT * totalDur).toFixed(2)));
-  if (endT <= range.start) endT = Math.min(totalDur, range.start + 0.5);
-
-  animOwner.keyframes ||= [];
-  const existingEnd = animOwner.keyframes.find(k => k.pathProgress === 1);
-  if (existingEnd) existingEnd.t = endT;
-  else animOwner.keyframes.push({ t: endT, pathProgress: 1, easing: 'linear' });
-  animOwner.keyframes.sort((a, b) => a.t - b.t);
-
-  syncProps(); drawTimeline(); updateCode();
-  setStatus('パス終了: ' + endT.toFixed(2) + 's');
-});
-
 document.getElementById('btn-path-duration-apply')?.addEventListener('click', () => setPathDurationFromPlayhead());
 document.getElementById('p-path-duration')?.addEventListener('change', () => setPathDurationFromPlayhead());
+
+// パス速度(px/s): パスの長さから逆算して「パス時間」を更新し、そのまま確定する
+// （回転の回転速度⇄回転時間と同じ考え方）
+document.getElementById('p-path-speed')?.addEventListener('change', () => {
+  const animOwner = getSelectedAnimationOwner();
+  if (!animOwner?.animPath || animOwner.animPath.length < 2) return;
+  const speed = Number(document.getElementById('p-path-speed')?.value);
+  if (!Number.isFinite(speed) || speed <= 0) return;
+  const len = getPathLength(animOwner.animPath);
+  const durInput = document.getElementById('p-path-duration');
+  if (durInput) durInput.value = Math.max(0.05, len / speed).toFixed(2);
+  setPathDurationFromPlayhead();
+});
 
 // 物理タグトグル
 function toggleTag(key) { setStatus('物理演算は削除済みです'); }
