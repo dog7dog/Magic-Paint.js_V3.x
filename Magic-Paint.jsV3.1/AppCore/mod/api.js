@@ -14,6 +14,34 @@ window.AnimationApp = {
     left: null
   },
 
+  // ── 外部ライブラリ登録（テキストエディタ/AI生成コードから libs.<id> で利用）──
+  libraries: {},
+
+  // MODが「このライブラリを使わせてよい」と宣言する。
+  // load は Promise を返す非同期関数（例: CDNから動的読み込み）。
+  // 同じライブラリを複数のMODが使う場合も、実際の読み込みは1回だけ行われる。
+  registerLibrary(id, opts = {}) {
+    if (!id || typeof opts.load !== 'function') {
+      console.warn('registerLibrary: id と load関数が必要です:', id);
+      return;
+    }
+    this.libraries[id] = {
+      id,
+      name: opts.name || id,
+      description: opts.description || '',
+      load: opts.load,
+      _promise: null
+    };
+  },
+
+  // 登録済みライブラリを読み込んで返す（キャッシュ済みなら再利用）
+  getLibrary(id) {
+    const lib = this.libraries[id];
+    if (!lib) return Promise.reject(new Error('未登録のライブラリです: ' + id));
+    if (!lib._promise) lib._promise = Promise.resolve(lib.load());
+    return lib._promise;
+  },
+
   registerMod(mod) {
     if (!mod || !mod.id) return;
     // ZIPインストール型MODの main.js もこの同じ registerMod() を呼ぶため、
