@@ -799,22 +799,38 @@ function runEditorCode() {
   }
 }
 
-// コード中で参照されている libs.<id> を検出し、該当するMOD登録済みライブラリだけを
-// 読み込んで { id: 読み込み結果 } の形で返す（使っていないライブラリは読み込まない）
-async function buildLibsForCode(code) {
-  const libs = window.AnimationApp?.libraries || {};
-  const ids = Object.keys(libs).filter(id => new RegExp('\\blibs\\.' + id + '\\b').test(code));
-  const out = {};
-  if (!ids.length) return out;
-  jeLog('ライブラリを読み込み中: ' + ids.join(', '), 'warn');
-  await Promise.all(ids.map(async id => {
+// new Function() では非同期関数を作れないため、AsyncFunction コンストラクタを
+// 経由する（標準的な回避策）。これで手書きコードのトップレベルで
+// await api.libraries.get('cannon') のような書き方ができる。
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
+// コード中に THREE / CANNON のような「素の識別子」が出てきたら、それを
+// globalName として宣言しているMOD登録済みライブラリを自動で読み込み、
+// 同名の引数として実行関数に注入する。
+// あくまで「MODが api.libraries に登録済み(=許可済み)のものだけ」が対象。
+// ここにCDN URLを書いて未登録のものを取りに行く、ということはしない
+// （テキストエディタの実行エンジン自身が勝手にCDNを読みに行かない設計）。
+async function resolveLibraryParams(code) {
+  const libs = window.AnimationApp?.libraries;
+  const names = [];
+  const values = [];
+  if (!libs?.list) return { names, values };
+
+  const candidates = libs.list().filter(
+    entry => entry.globalName && new RegExp('\\b' + entry.globalName + '\\b').test(code)
+  );
+  for (const entry of candidates) {
     try {
-      out[id] = await window.AnimationApp.getLibrary(id);
+      const mod = await libs.get(entry.id);
+      names.push(entry.globalName);
+      values.push(mod);
     } catch (e) {
-      jeLog('✗ ライブラリ読み込み失敗: ' + id + ' (' + e.message + ')', 'error');
+      throw new Error(
+        entry.globalName + ' を読み込めませんでした。「' + entry.name + '」を提供するMODが有効になっているか確認してください。(' + e.message + ')'
+      );
     }
-  }));
-  return out;
+  }
+  return { names, values };
 }
 
 async function executeCode(code) {
@@ -823,10 +839,12 @@ async function executeCode(code) {
       gsap.globalTimeline.resume();
       gsap.globalTimeline.paused(false);
     }
-    const libs = await buildLibsForCode(code);
-    // Function コンストラクタで安全に実行
-    const fn = new Function('gsap', 'MotionPathPlugin', 'libs', code);
-    fn(gsap, typeof MotionPathPlugin !== 'undefined' ? MotionPathPlugin : null, libs);
+    // MOD API v2: window.AnimationApp を api として渡す（api.libraries.get('id') で明示取得も可）。
+    // それに加えて、コードが THREE/CANNON 等の素の識別子を使っていれば
+    // MOD登録済みのものだけを自動検出して同名の引数として渡す。
+    const { names, values } = await resolveLibraryParams(code);
+    const fn = new AsyncFunction('gsap', 'MotionPathPlugin', 'api', ...names, code);
+    await fn(gsap, typeof MotionPathPlugin !== 'undefined' ? MotionPathPlugin : null, window.AnimationApp, ...values);
     jeLog('✓ 実行完了', 'ok');
   } catch (e) {
     jeLog('✗ ' + e.message, 'error');
