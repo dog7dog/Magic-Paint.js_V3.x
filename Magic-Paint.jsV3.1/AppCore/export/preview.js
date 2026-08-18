@@ -272,17 +272,22 @@ function openPreview(download = false) {
     );
   }
 
-  function userKeyframesForShape(s) {
-    return (s?.keyframes || []).filter(k => !k.autoHold).sort((a, b) => a.t - b.t);
+  // パスの「進み具合(pathProgress: 0〜1)」を持つKFだけを抜き出す
+  function pathProgressKeyframes(s) {
+    return (s?.keyframes || []).filter(k => Number.isFinite(Number(k.pathProgress)));
   }
 
   function getPathTimeRange(s) {
-    const pathStartT = Number(s?.pathStartT);
-    const pathStartKf = userKeyframesForShape(s).find(k => k.pathStart || k.kind === 'path-start');
-    let start = Number.isFinite(pathStartT)
-      ? pathStartT
-      : (pathStartKf ? Number(pathStartKf.t) : 0);
-    let end = Number.isFinite(Number(s?.pathEndT)) ? Number(s.pathEndT) : data.totalDur;
+    const kfs = pathProgressKeyframes(s);
+    let start = 0, end = data.totalDur;
+    if (kfs.length >= 2) {
+      const sorted = [...kfs].sort((a, b) => a.pathProgress - b.pathProgress);
+      start = sorted[0].t;
+      end = sorted[sorted.length - 1].t;
+    } else if (kfs.length === 1) {
+      if (kfs[0].pathProgress <= 0) start = kfs[0].t;
+      else if (kfs[0].pathProgress >= 1) end = kfs[0].t;
+    }
     start = Math.max(0, Math.min(data.totalDur, start));
     end = Math.max(0, Math.min(data.totalDur, end));
     if (end <= start) {
@@ -295,33 +300,74 @@ function openPreview(download = false) {
 
   function getPathProgressForTime(s, localTime, fallbackProgress) {
     if (!s?.animPath || s.animPath.length < 2) return null;
+
+    const kfs = pathProgressKeyframes(s);
+    if (kfs.length >= 2) {
+      const sample = sampleKeyframes(kfs, localTime);
+      const p = Number(sample?.pathProgress);
+      if (Number.isFinite(p)) return Math.max(0, Math.min(1, p));
+    }
+
     const range = getPathTimeRange(s);
     if (localTime <= range.start) return 0;
     if (localTime >= range.end) return 1;
     return (localTime - range.start) / Math.max(0.001, range.end - range.start);
   }
 
-  function interpKF(kfs, time) {
-    if (!kfs || !kfs.length) return null;
-    const sorted = [...kfs].sort((a, b) => a.t - b.t);
-    const before = sorted.filter(k => k.t <= time);
-    const after = sorted.filter(k => k.t > time);
-    if (!before.length) return null;
-    if (!after.length) return { ...sorted[sorted.length - 1].props };
-    const k0 = before[before.length - 1], k1 = after[0];
-    const f = (time - k0.t) / (k1.t - k0.t);
-    const lerp = key => {
-      const a = Number(k0.props[key]);
-      const b = Number(k1.props[key]);
-      return Number.isFinite(a) && Number.isFinite(b) ? a + (b - a) * f : undefined;
-    };
-    return {
-      opa: lerp('opa'),
-      rot: lerp('rot'),
-      x: lerp('x'),
-      y: lerp('y'),
-      color: k0.props.color
-    };
+  // ══ KFエンジン v2: 補間 + easing ══════════════════════════════
+  // AppCore/animation/interpolation.js と同じロジック。
+  // プレビューは独立したHTMLとして書き出す/新規タブで開くため、
+  // <script src>で共有できず、ここに複製している。
+  // interpolation.js を変更したら、このブロックも合わせて更新すること。
+  const PREVIEW_EASINGS = {
+    linear: f => f,
+    easeIn: f => f * f,
+    easeOut: f => 1 - (1 - f) * (1 - f),
+    easeInOut: f => (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2)
+  };
+  function previewApplyEasing(name, f) {
+    const fn = PREVIEW_EASINGS[name] || PREVIEW_EASINGS.linear;
+    return fn(Math.max(0, Math.min(1, f)));
+  }
+  const PREVIEW_KF_NON_NUMERIC_KEYS = new Set(['t', 'easing', 'color']);
+  function previewNumericKeysOfKf(kf) {
+    return Object.keys(kf).filter(
+      k => !PREVIEW_KF_NON_NUMERIC_KEYS.has(k) && Number.isFinite(Number(kf[k]))
+    );
+  }
+  function sampleKeyframes(keyframes, t) {
+    if (!keyframes || !keyframes.length) return null;
+    const sorted = [...keyframes].sort((a, b) => a.t - b.t);
+
+    if (t <= sorted[0].t) return { ...sorted[0] };
+    const last = sorted[sorted.length - 1];
+    if (t >= last.t) return { ...last };
+
+    let k0 = sorted[0], k1 = last;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].t <= t && t <= sorted[i + 1].t) {
+        k0 = sorted[i];
+        k1 = sorted[i + 1];
+        break;
+      }
+    }
+
+    const span = k1.t - k0.t;
+    const rawF = span > 0 ? (t - k0.t) / span : 1;
+    const f = previewApplyEasing(k0.easing, rawF);
+
+    const keys = new Set([...previewNumericKeysOfKf(k0), ...previewNumericKeysOfKf(k1)]);
+    const out = { t };
+    keys.forEach(key => {
+      const a = Number(k0[key]);
+      const b = Number(k1[key]);
+      if (Number.isFinite(a) && Number.isFinite(b)) out[key] = a + (b - a) * f;
+      else if (Number.isFinite(a)) out[key] = a;
+      else if (Number.isFinite(b)) out[key] = b;
+    });
+    out.color = k0.color ?? k1.color;
+    out.easing = k0.easing || 'linear';
+    return out;
   }
 
   function getPathPos(t, path) {
@@ -475,7 +521,7 @@ function openPreview(download = false) {
   }
 
   function applyPreviewAnimationTransform(owner, center, localTime, progress) {
-    const kfP = interpKF(owner.keyframes, localTime);
+    const kfP = sampleKeyframes(owner.keyframes, localTime);
     const pathProgress = getPathProgressForTime(owner, localTime, progress);
     const pos = getPathPos(pathProgress ?? progress, owner.animPath || null);
     const pathDx = pos && owner.animPath && owner.animPath[0] ? pos.x - owner.animPath[0].x : 0;
@@ -490,10 +536,19 @@ function openPreview(download = false) {
       ctx.translate(dx, dy);
     }
 
-    const kfRot = kfP && Number.isFinite(Number(kfP.rot)) ? Number(kfP.rot) : null;
-    if (kfRot !== null) {
+    const kfRot = kfP && Number.isFinite(Number(kfP.rotation)) ? Number(kfP.rotation) : null;
+    const kfScaleX = kfP && Number.isFinite(Number(kfP.scaleX)) ? Number(kfP.scaleX) : null;
+    const kfScaleY = kfP && Number.isFinite(Number(kfP.scaleY)) ? Number(kfP.scaleY) : null;
+
+    if (kfRot !== null || kfScaleX !== null || kfScaleY !== null) {
       ctx.translate(center.x, center.y);
-      ctx.rotate(((kfRot - (owner.rot || 0)) * Math.PI) / 180);
+      if (kfRot !== null) {
+        ctx.rotate(((kfRot - (owner.rot || 0)) * Math.PI) / 180);
+      }
+      if (kfScaleX !== null || kfScaleY !== null) {
+        const baseSx = owner.scaleX || 1, baseSy = owner.scaleY || 1;
+        ctx.scale((kfScaleX ?? baseSx) / baseSx, (kfScaleY ?? baseSy) / baseSy);
+      }
       ctx.translate(-center.x, -center.y);
     }
 
@@ -512,7 +567,7 @@ function openPreview(download = false) {
       return;
     }
 
-    const kfOpa = Number(kfP.opa);
+    const kfOpa = Number(kfP.opacity);
     drawShape({
       ...s,
       opa: Number.isFinite(kfOpa) ? kfOpa : s.opa,
