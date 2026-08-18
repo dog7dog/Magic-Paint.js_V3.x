@@ -61,6 +61,10 @@
       id,
       name: opts.name || id,
       description: opts.description || '',
+      // コード中で慣習的に使われるグローバル識別子名（例: 'CANNON', 'THREE'）。
+      // テキストエディタが「このグローバル名を使っているから、このライブラリが要る」と
+      // 判断して自動で引数注入するために使う（AppCore/ui/editor.js参照）。
+      globalName: opts.globalName || null,
       source, // 'mod.json' | 'mod'（デバッグ・将来のUI表示用）
       load: makeLoader(id, opts),
       _promise: null
@@ -103,7 +107,7 @@
     },
 
     list() {
-      return Object.values(registry).map(({ id, name, description, source }) => ({ id, name, description, source }));
+      return Object.values(registry).map(({ id, name, description, source, globalName }) => ({ id, name, description, source, globalName }));
     }
   };
 })();
