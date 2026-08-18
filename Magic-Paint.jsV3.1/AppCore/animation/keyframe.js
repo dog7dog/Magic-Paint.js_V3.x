@@ -269,6 +269,16 @@ function hasUserKeyframes(s) {
   return userKeyframesForShape(s).length > 0;
 }
 
+// パス(animPath)の全長(px)。パス速度⇄パス時間の相互変換に使う。
+function getPathLength(path) {
+  if (!path || path.length < 2) return 0;
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    total += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+  }
+  return total;
+}
+
 // パスの「進み具合(pathProgress: 0〜1)」を持つKFだけを抜き出す。
 // 位置・回転などの他プロパティのKFと同じ配列に混在させつつ、
 // パスの時間割り当てだけを独立して扱えるようにするためのフィルタ。
