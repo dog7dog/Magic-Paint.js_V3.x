@@ -190,17 +190,16 @@
           <!-- 右パネルの「アニメパス」「アニメーション回転」ツールで選んだ方に
                応じて、ここから下の内容を切り替える -->
           <button class="pp-btn danger" id="btn-clear-anim" style="display:none"><i class="ti ti-x"></i> パス削除</button>
-          <div class="pp-row path-time-row" id="row-path-time" style="display:none">
-            <span class="pp-label">パス時間</span>
-            <span class="pp-val path-time-info" id="path-time-info">0.00s - 3.00s</span>
-            <button class="pp-mini-btn" id="btn-path-start-now" title="現在の再生位置にKFを追加してパス開始にする"><i class="ti ti-player-play"></i></button>
-            <button class="pp-mini-btn" id="btn-path-end-now" title="現在の再生位置をパス終了にする"><i class="ti ti-player-stop"></i></button>
-          </div>
           <div class="pp-row path-duration-row" id="row-path-duration" style="display:none">
-            <span class="pp-label">秒数</span>
+            <span class="pp-label">パス時間</span>
             <input type="number" id="p-path-duration" min="0.05" max="120" step="0.1" value="3">
             <span class="pp-val">s</span>
             <button class="pp-mini-btn" id="btn-path-duration-apply" title="赤い再生位置から指定秒数でパスを実行"><i class="ti ti-clock-play"></i></button>
+          </div>
+          <div class="pp-row" id="row-path-speed" style="display:none; margin-top:2px">
+            <span class="pp-label">パス速度</span>
+            <input type="number" id="p-path-speed" min="1" max="100000" step="1" value="100">
+            <span class="pp-val">px/s</span>
           </div>
           <div class="pp-row" id="row-anim-rot" style="margin-top:6px; display:none">
             <span class="pp-label">回転角度</span>
