@@ -5,7 +5,9 @@
   const MOD_ID = "webgl_Tree.js";
   const IMAGE_TYPE = "webgl-image";
   const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+  const CANNON_URL = "https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js";
   let threeModulePromise = null;
+  let cannonModulePromise = null;
   let _threeLayerObj = null;  // レイヤーパネルに登録したオブジェクトの参照
 
   api.registerMod({
@@ -14,6 +16,20 @@
     level: 2,
     description: "画像レイヤーを追加し、現在のシーンをThree.jsのCanvasTextureで再生・JS書き出しします。"
   });
+
+  // テキストエディタ/AI生成コードから libs.three / libs.cannon として使えるようにする
+  if (typeof api.registerLibrary === "function") {
+    api.registerLibrary("three", {
+      name: "Three.js",
+      description: "3Dグラフィックスライブラリ",
+      load: loadThree
+    });
+    api.registerLibrary("cannon", {
+      name: "Cannon.js",
+      description: "3D物理演算ライブラリ",
+      load: loadCannon
+    });
+  }
 
   registerImageLayerRenderer();
 
@@ -69,6 +85,34 @@
       }
     }
     return threeModulePromise;
+  }
+
+  // cannon.js（物理演算）を読み込む。UMDのグローバルビルドなので<script>タグで読み込む。
+  function loadCannon() {
+    if (!cannonModulePromise) {
+      if (typeof window.CANNON !== "undefined" && window.CANNON.World) {
+        cannonModulePromise = Promise.resolve(window.CANNON);
+      } else {
+        cannonModulePromise = new Promise((resolve, reject) => {
+          const existing = document.querySelector('script[data-mod-cannon]');
+          if (existing) {
+            existing.addEventListener("load", () => resolve(window.CANNON));
+            existing.addEventListener("error", reject);
+            return;
+          }
+          const s = document.createElement("script");
+          s.src = CANNON_URL;
+          s.dataset.modCannon = "1";
+          s.onload = () => resolve(window.CANNON);
+          s.onerror = reject;
+          document.head.appendChild(s);
+        }).catch(err => {
+          cannonModulePromise = null;
+          throw err;
+        });
+      }
+    }
+    return cannonModulePromise;
   }
 
 
@@ -900,7 +944,7 @@
   // ── JS エディタモード登録 ──────────────────────────────────────────
 
   const THREE_JS_PLACEHOLDER =
-`// Three.js mode — canvas / width / height が使えます
+`// Three.js mode — THREE / CANNON(cannon.js) / canvas / width / height が使えます
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setSize(width, height, false);
 
@@ -978,12 +1022,13 @@ window.__threeCleanup = () => {
       '<div id="bar"><button id="btn-stop">停止</button><button id="btn-restart">最初から</button></div>',
       '<div id="err"></div>',
       '<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"><\\/script>',
+      '<script src="' + CANNON_URL + '"><\\/script>',
       '<script>',
       'const canvas=document.getElementById("pv");',
       'const width=' + w + ',height=' + h + ';',
       'const errEl=document.getElementById("err");',
       'const code=' + escapedCode + ';',
-      'try{const fn=new Function("THREE","canvas","width","height",code);fn(THREE,canvas,width,height);}',
+      'try{const fn=new Function("THREE","CANNON","canvas","width","height",code);fn(THREE,typeof CANNON!=="undefined"?CANNON:null,canvas,width,height);}',
       'catch(e){errEl.textContent="エラー: "+e.message;errEl.style.display="block";console.error(e);}',
       'document.getElementById("btn-stop").addEventListener("click",()=>{try{window.__threeCleanup?.();}catch(_){}document.getElementById("btn-stop").textContent="停止済み";});',
       'document.getElementById("btn-restart").addEventListener("click",()=>location.reload());',
@@ -1100,13 +1145,20 @@ window.__threeCleanup = () => {
           });
         }
 
-        window.jeLog?.('Three.js を読み込み中...', 'warn');
-        loadThree().then(THREE => {
+        window.jeLog?.('Three.js / Cannon.js を読み込み中...', 'warn');
+        Promise.all([
+          loadThree(),
+          loadCannon().catch(err => {
+            console.warn('[Cannon.js load failed]', err);
+            window.jeLog?.('⚠ Cannon.js 読み込み失敗（THREEのみで実行します）', 'warn');
+            return null;
+          })
+        ]).then(([THREE, CANNON]) => {
           try {
             window.__threeCleanup?.();
             window.__threeCleanup = null;
-            const fn = new Function('THREE', 'canvas', 'width', 'height', code);
-            fn(THREE, overlay, w, h);
+            const fn = new Function('THREE', 'CANNON', 'canvas', 'width', 'height', code);
+            fn(THREE, CANNON, overlay, w, h);
             window.jeLog?.('✓ Three.js 実行完了', 'ok');
             window.setStatus?.('Three.js 実行中');
           } catch (e) {
