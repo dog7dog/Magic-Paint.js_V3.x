@@ -194,11 +194,18 @@ document.getElementById('btn-path-end-now')?.addEventListener('click', () => {
   const animOwner = getSelectedAnimationOwner();
   if (!animOwner?.animPath || animOwner.animPath.length < 2) return;
   saveState();
-  animOwner.pathEndT = Math.max(0.01, parseFloat((animT * totalDur).toFixed(2)));
   const range = getPathTimeRange(animOwner);
-  if (animOwner.pathEndT <= range.start) animOwner.pathEndT = Math.min(totalDur, range.start + 0.5);
+  let endT = Math.max(0.01, parseFloat((animT * totalDur).toFixed(2)));
+  if (endT <= range.start) endT = Math.min(totalDur, range.start + 0.5);
+
+  animOwner.keyframes ||= [];
+  const existingEnd = animOwner.keyframes.find(k => k.pathProgress === 1);
+  if (existingEnd) existingEnd.t = endT;
+  else animOwner.keyframes.push({ t: endT, pathProgress: 1, easing: 'linear' });
+  animOwner.keyframes.sort((a, b) => a.t - b.t);
+
   syncProps(); drawTimeline(); updateCode();
-  setStatus('パス終了: ' + animOwner.pathEndT.toFixed(2) + 's');
+  setStatus('パス終了: ' + endT.toFixed(2) + 's');
 });
 
 document.getElementById('btn-path-duration-apply')?.addEventListener('click', () => setPathDurationFromPlayhead());
