@@ -269,9 +269,26 @@ function hasUserKeyframes(s) {
   return userKeyframesForShape(s).length > 0;
 }
 
+// パスの「進み具合(pathProgress: 0〜1)」を持つKFだけを抜き出す。
+// 位置・回転などの他プロパティのKFと同じ配列に混在させつつ、
+// パスの時間割り当てだけを独立して扱えるようにするためのフィルタ。
+function pathProgressKeyframes(s) {
+  return (s?.keyframes || []).filter(k => Number.isFinite(Number(k.pathProgress)));
+}
+
+// パスKF(pathProgress:0〜1)が無い図形は、これまで通り
+// 「タイムライン全体(0〜totalDur)に等速で対応付け」をデフォルトにする。
 function getPathTimeRange(s) {
-  let start = Number.isFinite(Number(s?.pathStartT)) ? Number(s.pathStartT) : 0;
-  let end = Number.isFinite(Number(s?.pathEndT)) ? Number(s.pathEndT) : totalDur;
+  const kfs = pathProgressKeyframes(s);
+  let start = 0, end = totalDur;
+  if (kfs.length >= 2) {
+    const sorted = [...kfs].sort((a, b) => a.pathProgress - b.pathProgress);
+    start = sorted[0].t;
+    end = sorted[sorted.length - 1].t;
+  } else if (kfs.length === 1) {
+    if (kfs[0].pathProgress <= 0) start = kfs[0].t;
+    else if (kfs[0].pathProgress >= 1) end = kfs[0].t;
+  }
   start = Math.max(0, Math.min(totalDur, start));
   end = Math.max(0, Math.min(totalDur, end));
   if (end <= start) {
@@ -284,6 +301,18 @@ function getPathTimeRange(s) {
 
 function getPathProgressForTime(s, cur, fallbackProgress) {
   if (!s?.animPath || s.animPath.length < 2) return null;
+
+  // pathProgressKF が2点以上あれば、他のKFと同じ補間+easingエンジンで進み具合を出す
+  // （区間ごとにease-in/out等をかけられる）
+  const kfs = pathProgressKeyframes(s);
+  if (kfs.length >= 2) {
+    const sample = sampleKeyframes(kfs, cur);
+    const p = Number(sample?.pathProgress);
+    if (Number.isFinite(p)) return Math.max(0, Math.min(1, p));
+  }
+
+  // 明示的なタイミングKFが無い/1点だけの場合は、開始〜終了の範囲に対する
+  // 単純な線形の進み具合にフォールバックする
   const range = getPathTimeRange(s);
   if (cur <= range.start) return 0;
   if (cur >= range.end) return 1;
@@ -317,8 +346,12 @@ function setPathDurationFromPlayhead() {
   }
   animT = totalDur > 0 ? Math.max(0, Math.min(1, startT / totalDur)) : 0;
 
-  animOwner.pathStartT = startT;
-  animOwner.pathEndT = endT;
+  animOwner.keyframes ||= [];
+  // 既存のパス進み具合KF(pathProgressを持つもの)は置き換える
+  animOwner.keyframes = animOwner.keyframes.filter(k => !Number.isFinite(Number(k.pathProgress)));
+  animOwner.keyframes.push({ t: startT, pathProgress: 0, easing: 'linear' });
+  animOwner.keyframes.push({ t: endT, pathProgress: 1, easing: 'linear' });
+  animOwner.keyframes.sort((a, b) => a.t - b.t);
   markGroupAnimationOwner(animOwner);
 
   renderAnimationCanvasFrame(animT);
@@ -396,4 +429,27 @@ function migrateLegacyKeyframes(shape) {
     });
 
   delete shape._kfBaseProps; // 旧形式のprops構造で保存されていたため作り直す
+}
+
+// ── パスの時間指定(pathStartT/pathEndTスカラー)をpathProgress KFへ移行 ──
+// 旧: shape.pathStartT / shape.pathEndT （個別スカラー値）
+// 新: shape.keyframes 内の { t, pathProgress: 0|1, easing } エントリ
+// isLegacy判定を経ない（props構造ではない）通常のv2データにも
+// pathStartT/pathEndTが残っている場合があるため、無条件に実行する。
+function migratePathTimingScalars(shape) {
+  if (!shape) return;
+  const hasStart = Number.isFinite(Number(shape.pathStartT));
+  const hasEnd = Number.isFinite(Number(shape.pathEndT));
+  if (!hasStart && !hasEnd) return;
+
+  shape.keyframes ||= [];
+  if (hasStart) {
+    shape.keyframes.push({ t: Number(shape.pathStartT), pathProgress: 0, easing: 'linear' });
+  }
+  if (hasEnd) {
+    shape.keyframes.push({ t: Number(shape.pathEndT), pathProgress: 1, easing: 'linear' });
+  }
+  shape.keyframes.sort((a, b) => a.t - b.t);
+  delete shape.pathStartT;
+  delete shape.pathEndT;
 }
