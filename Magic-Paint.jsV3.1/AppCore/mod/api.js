@@ -84,8 +84,23 @@ window.AnimationApp = {
 
     // MOD側の入口その2: 「使えるようにだけしておく」宣言のみの登録（即読み込みしない）。
     // mod.json / manifest.json の libraries 宣言も内部的にこれを使う。
+    // 既に同じidが登録済みでも黙って無視せず、新しい宣言内容で上書きする
+    // （MODを更新して再インストールした時、旧globalName等が残り続けるのを防ぐため）。
     declare(id, opts = {}) {
-      if (!_libRegistry[id]) _registerLib(id, opts, opts.source || 'mod');
+      if (!id) return;
+      const existing = _libRegistry[id];
+      if (!existing) {
+        _registerLib(id, opts, opts.source || 'mod');
+        return;
+      }
+      existing.name = opts.name || existing.name || id;
+      existing.description = opts.description || existing.description || '';
+      existing.globalName = opts.globalName || existing.globalName || null;
+      existing.source = opts.source || existing.source || 'mod';
+      // URL/typeなどが変わっている可能性があるのでローダーも作り直す
+      existing.load = _makeLibLoader(id, { ...opts, globalName: existing.globalName });
+      // 次回get()で新しい定義から読み込み直す
+      existing._promise = null;
     },
 
     // 登録済みライブラリを取得する（未読み込みなら初回だけ読み込み、以降はキャッシュを返す）。
