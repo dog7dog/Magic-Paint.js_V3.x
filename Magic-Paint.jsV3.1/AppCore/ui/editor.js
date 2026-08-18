@@ -799,15 +799,34 @@ function runEditorCode() {
   }
 }
 
-function executeCode(code) {
+// コード中で参照されている libs.<id> を検出し、該当するMOD登録済みライブラリだけを
+// 読み込んで { id: 読み込み結果 } の形で返す（使っていないライブラリは読み込まない）
+async function buildLibsForCode(code) {
+  const libs = window.AnimationApp?.libraries || {};
+  const ids = Object.keys(libs).filter(id => new RegExp('\\blibs\\.' + id + '\\b').test(code));
+  const out = {};
+  if (!ids.length) return out;
+  jeLog('ライブラリを読み込み中: ' + ids.join(', '), 'warn');
+  await Promise.all(ids.map(async id => {
+    try {
+      out[id] = await window.AnimationApp.getLibrary(id);
+    } catch (e) {
+      jeLog('✗ ライブラリ読み込み失敗: ' + id + ' (' + e.message + ')', 'error');
+    }
+  }));
+  return out;
+}
+
+async function executeCode(code) {
   try {
     if (typeof gsap !== 'undefined') {
       gsap.globalTimeline.resume();
       gsap.globalTimeline.paused(false);
     }
+    const libs = await buildLibsForCode(code);
     // Function コンストラクタで安全に実行
-    const fn = new Function('gsap', 'MotionPathPlugin', code);
-    fn(gsap, typeof MotionPathPlugin !== 'undefined' ? MotionPathPlugin : null);
+    const fn = new Function('gsap', 'MotionPathPlugin', 'libs', code);
+    fn(gsap, typeof MotionPathPlugin !== 'undefined' ? MotionPathPlugin : null, libs);
     jeLog('✓ 実行完了', 'ok');
   } catch (e) {
     jeLog('✗ ' + e.message, 'error');
