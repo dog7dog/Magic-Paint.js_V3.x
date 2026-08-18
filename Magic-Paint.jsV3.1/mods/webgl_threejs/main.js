@@ -18,16 +18,20 @@
   });
 
   // テキストエディタ/AI生成コードから api.libraries.get('three'/'cannon') として
-  // 使えるように宣言しておく（declare()は登録のみ・実際の読み込みはget()の初回呼び出し時）
+  // 使えるように宣言しておく（declare()は登録のみ・実際の読み込みはget()の初回呼び出し時）。
+  // globalName を指定しておくと、コード中に素の THREE / CANNON という識別子が
+  // 出てきた時にエディタ側が自動でそれと分かって読み込み・引数注入してくれる。
   if (api.libraries?.declare) {
     api.libraries.declare("three", {
       name: "Three.js",
       description: "3Dグラフィックスライブラリ",
+      globalName: "THREE",
       load: loadThree
     });
     api.libraries.declare("cannon", {
       name: "Cannon.js",
       description: "3D物理演算ライブラリ",
+      globalName: "CANNON",
       load: loadCannon
     });
   }
