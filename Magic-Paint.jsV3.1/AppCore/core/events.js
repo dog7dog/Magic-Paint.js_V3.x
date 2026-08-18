@@ -565,8 +565,11 @@ cv.addEventListener('dblclick', e => {
     saveState();
     const animOwner = getAnimationOwnerForShape(selected);
     animOwner.animPath = [...pathPoints];
-    delete animOwner.pathStartT;
-    animOwner.pathEndT = totalDur;
+    // 新しくパスを描き直したら、以前のパス進み具合(pathProgress)KFはリセットし、
+    // デフォルト(タイムライン全体に等速で対応付け)に戻す
+    if (animOwner.keyframes?.length) {
+      animOwner.keyframes = animOwner.keyframes.filter(k => !Number.isFinite(Number(k.pathProgress)));
+    }
     markGroupAnimationOwner(animOwner);
     const range = getPathTimeRange(animOwner);
     setStatus((selected.groupId ? 'グループ' : selected.name) + ' にパスを設定しました / 開始 ' + range.start.toFixed(2) + 's');
@@ -574,6 +577,7 @@ cv.addEventListener('dblclick', e => {
     setStatus('⚠ 先に図形を選択してください');
   }
   pathPoints = []; pathDragging = false;
+  syncProps();
   redraw(); drawTimeline();
 });
 
