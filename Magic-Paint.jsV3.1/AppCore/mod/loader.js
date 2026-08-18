@@ -123,8 +123,11 @@ function _executeZipMod(manifest, files, assetMap) {
   // manifest.json で宣言された外部ライブラリを Library Manager に登録（登録のみ、遅延読み込み）
   if (window.AnimationApp?.libraries && Array.isArray(manifest.libraries)) {
     for (const lib of manifest.libraries) {
-      if (!lib || !lib.id) continue;
-      window.AnimationApp.libraries.declare(lib.id, { ...lib, source: 'mod.json' });
+      if (!lib) continue;
+      // id を省略して name だけで書かれた宣言も許容する
+      const libId = lib.id || lib.name;
+      if (!libId) continue;
+      window.AnimationApp.libraries.declare(libId, { ...lib, source: 'mod.json' });
     }
   }
 
@@ -328,8 +331,11 @@ async function loadMods() {
       // （ここでは登録だけ。実際の読み込みは get() が最初に呼ばれた時）
       if (window.AnimationApp?.libraries && Array.isArray(mod.libraries)) {
         for (const lib of mod.libraries) {
-          if (!lib || !lib.id) continue;
-          window.AnimationApp.libraries.declare(lib.id, { ...lib, source: 'mod.json' });
+          if (!lib) continue;
+          // id を省略して name だけで書かれた宣言も許容する
+          const libId = lib.id || lib.name;
+          if (!libId) continue;
+          window.AnimationApp.libraries.declare(libId, { ...lib, source: 'mod.json' });
         }
       }
 
