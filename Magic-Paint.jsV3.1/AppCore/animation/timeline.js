@@ -125,12 +125,15 @@ const addKfFn = () => {
   const animOwner = getSelectedAnimationOwner();
   const startsPath = Boolean(animOwner?.animPath && animOwner.animPath.length > 1);
 
-  // パスを持つ図形は、KFではなく pathStartT（パス側の開始時刻）を更新する
-  // ── パスの位置情報とプロパティKFを同じ配列に混ぜない設計にしたため
+  // パスを持つ図形は、パスの「進み具合(pathProgress:0)」KFを現在位置に追加/更新する
   if (startsPath) {
     const t = parseFloat((animT * totalDur).toFixed(2));
     saveState();
-    animOwner.pathStartT = t;
+    animOwner.keyframes ||= [];
+    const existingStart = animOwner.keyframes.find(k => k.pathProgress === 0);
+    if (existingStart) existingStart.t = t;
+    else animOwner.keyframes.push({ t, pathProgress: 0, easing: 'linear' });
+    animOwner.keyframes.sort((a, b) => a.t - b.t);
     markGroupAnimationOwner(animOwner);
     renderAnimationCanvasFrame(animT);
     syncProps(); drawTimeline(); updateCode();
