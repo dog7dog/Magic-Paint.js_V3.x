@@ -52,17 +52,13 @@ function drawTimeline() {
     tctx.fillStyle = 'rgba(255,255,255,0.04)';
     tctx.fillRect(0, y + TRACK_H - 1, totalW, 1);
 
-    // duration bar
+    // duration bar: 図形はKFの範囲外でも最後(最初)の姿勢で存在し続けるので、
+    // パスを持つ図形も他のKF付き図形と同じくタイムライン全体に帯を表示する
+    // （範囲外だけ帯が消えて図形も消えたように見えるのを防ぐ）。
+    // パスの実際の開始/終了はダイヤ型のKFマーカーで示される。
     tctx.fillStyle = s.animPath ? s.color : '#3B8AE6';
     tctx.globalAlpha = s.hidden ? 0.15 : 0.35;
-    if (s.animPath && s.animPath.length > 1) {
-      const range = getPathTimeRange(s);
-      const bx = Math.round(range.start * PX_PER_SEC) + 2;
-      const bw = Math.max(3, Math.round((range.end - range.start) * PX_PER_SEC) - 2);
-      tctx.fillRect(bx, y + TRACK_H / 2 - 5, bw, 10);
-    } else {
-      tctx.fillRect(2, y + TRACK_H / 2 - 5, Math.round(totalDur * PX_PER_SEC) - 2, 10);
-    }
+    tctx.fillRect(2, y + TRACK_H / 2 - 5, Math.round(totalDur * PX_PER_SEC) - 2, 10);
     tctx.globalAlpha = 1;
 
     // keyframes
