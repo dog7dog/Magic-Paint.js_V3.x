@@ -1,8 +1,10 @@
 // ══════════════════════════════════════════════════════════════
-// KFエンジン v2: データ操作
+// KFエンジン v2: データ操作（本体UI専用）
 //   shape.keyframes はフラットな1オブジェクトの配列
 //     { t, x, y, rotation, scaleX, scaleY, opacity, color, easing }
 //   補間そのものは interpolation.js の sampleKeyframes() に委譲する。
+//   Previewとも共有できるパス/アニメーション判定処理は runtime.js に
+//   切り出し済み。ここにはUIから呼ばれるデータの読み書きだけを置く。
 //   Canvas描画・再生ループは playback.js 側の責務。
 // ══════════════════════════════════════════════════════════════
 
@@ -14,14 +16,7 @@ function getAnimationCenter(s) {
   return getCenter(s);
 }
 
-function shapeHasAnimation(s) {
-  if (!s) return false;
-  return Boolean(
-    (s.animPath && s.animPath.length > 1) ||
-    (s.keyframes && s.keyframes.length) ||
-    s.autoRotate
-  );
-}
+// shapeHasAnimation は AppCore/animation/runtime.js へ移動（本体・Preview共有）。
 
 function markGroupAnimationOwner(s) {
   if (!s?.groupId) return;
@@ -279,55 +274,8 @@ function getPathLength(path) {
   return total;
 }
 
-// パスの「進み具合(pathProgress: 0〜1)」を持つKFだけを抜き出す。
-// 位置・回転などの他プロパティのKFと同じ配列に混在させつつ、
-// パスの時間割り当てだけを独立して扱えるようにするためのフィルタ。
-function pathProgressKeyframes(s) {
-  return (s?.keyframes || []).filter(k => Number.isFinite(Number(k.pathProgress)));
-}
-
-// パスKF(pathProgress:0〜1)が無い図形は、これまで通り
-// 「タイムライン全体(0〜totalDur)に等速で対応付け」をデフォルトにする。
-function getPathTimeRange(s) {
-  const kfs = pathProgressKeyframes(s);
-  let start = 0, end = totalDur;
-  if (kfs.length >= 2) {
-    const sorted = [...kfs].sort((a, b) => a.pathProgress - b.pathProgress);
-    start = sorted[0].t;
-    end = sorted[sorted.length - 1].t;
-  } else if (kfs.length === 1) {
-    if (kfs[0].pathProgress <= 0) start = kfs[0].t;
-    else if (kfs[0].pathProgress >= 1) end = kfs[0].t;
-  }
-  start = Math.max(0, Math.min(totalDur, start));
-  end = Math.max(0, Math.min(totalDur, end));
-  if (end <= start) {
-    if (start >= totalDur) start = Math.max(0, totalDur - 0.5);
-    end = Math.min(totalDur, start + 0.5);
-  }
-  if (end <= start) end = Math.max(start + 0.01, totalDur);
-  return { start, end };
-}
-
-function getPathProgressForTime(s, cur, fallbackProgress) {
-  if (!s?.animPath || s.animPath.length < 2) return null;
-
-  // pathProgressKF が2点以上あれば、他のKFと同じ補間+easingエンジンで進み具合を出す
-  // （区間ごとにease-in/out等をかけられる）
-  const kfs = pathProgressKeyframes(s);
-  if (kfs.length >= 2) {
-    const sample = sampleKeyframes(kfs, cur);
-    const p = Number(sample?.pathProgress);
-    if (Number.isFinite(p)) return Math.max(0, Math.min(1, p));
-  }
-
-  // 明示的なタイミングKFが無い/1点だけの場合は、開始〜終了の範囲に対する
-  // 単純な線形の進み具合にフォールバックする
-  const range = getPathTimeRange(s);
-  if (cur <= range.start) return 0;
-  if (cur >= range.end) return 1;
-  return (cur - range.start) / Math.max(0.001, range.end - range.start);
-}
+// pathProgressKeyframes / getPathTimeRange / getPathProgressForTime は
+// AppCore/animation/runtime.js へ移動（本体・Preview共有）。
 
 function setPathDurationFromPlayhead() {
   if (!selected) { setStatus('図形を選択してください'); return; }
@@ -380,15 +328,7 @@ function rememberAnimationBase(s) {
   if (props) owner._kfBaseProps = props;
 }
 
-function getGroupAnimationOwner(groupId, fallbackToFirst = true) {
-  const members = getGroupMembers(groupId, true);
-  return (
-    members.find(s => s.groupAnimOwner && shapeHasAnimation(s)) ||
-    members.find(shapeHasAnimation) ||
-    (fallbackToFirst ? members[0] : null) ||
-    null
-  );
-}
+// getGroupAnimationOwner は AppCore/animation/runtime.js へ移動（本体・Preview共有）。
 
 function getSelectedAnimationOwner() {
   if (!selected) return null;
