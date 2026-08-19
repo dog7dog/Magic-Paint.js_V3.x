@@ -349,10 +349,7 @@ function finishMarqueeSelection(x, y) {
   redraw();
 }
 
-function getGroupMembers(groupId, includeHidden = false) {
-  if (!groupId) return [];
-  return shapes.filter(s => s.groupId === groupId && (includeHidden || !s.hidden));
-}
+// getGroupMembers は AppCore/animation/runtime.js へ移動（本体・Preview共有）。
 
 function getGroupBounds(groupId) {
   const members = getGroupMembers(groupId);
