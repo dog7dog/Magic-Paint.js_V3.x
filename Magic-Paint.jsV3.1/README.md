@@ -1,4 +1,4 @@
-# 🎨 Magic Paint 3.0
+# 🎨 Magic Paint 3.1
 
 **Magic Paint** は、ブラウザ上で動作するオープンな2Dアニメーション・イラスト制作ツールです。
 
@@ -63,6 +63,17 @@ docs/images/screenshot.png
 
 ---
 
+## 🤖 AI
+
+- AIアシスタント（チャット形式）
+- 複数プロバイダー対応（切り替え可能）
+- AIによるCanvas API生成（アニメーションプリセット：星空・花火・雪・炎・波・パーティクル 等）
+- AIによるThree.jsコード生成
+- 生成コードのプレビュー・危険ワードチェック
+- 生成コードの適用 / MOD化 / エディタ送り
+
+---
+
 ## 📦 エクスポート
 
 - PNG
@@ -84,16 +95,19 @@ Magic PaintはMODに対応しています。
 - registerShape()
 - addObject()
 - registerRenderer()
+- registerMod()
+- libraries.load() / libraries.declare() / libraries.get() / libraries.has() / libraries.list()（外部ライブラリの登録・利用）
 
 ---
 
 ## 🧩 MOD SDK
 
-現在整備中
+`docs/` 以下にドキュメントサイトとして用意しています。
 
-- API Reference
-- 開発ガイド
-- サンプルMOD
+- [概要](docs/overview.html) / [チュートリアル](docs/tutorial.html) / [APIリファレンス](docs/api.html)
+- API Reference（`docs/MOD_API_REFERENCE.md`）
+- 開発ガイド（`docs/MOD_DEVELOPMENT_GUIDE.md`）
+- サンプルMOD（`mods/webgl_threejs`）
 
 ---
 
@@ -172,30 +186,15 @@ http://127.0.0.1:5000
 |Ctrl + Z|Undo|
 |Ctrl + Shift + Z|Redo|
 |Delete|削除|
-|Ctrl + C|コピー（予定）|
-|Ctrl + V|貼り付け（予定）|
+|Ctrl + C|コピー|
+|Ctrl + V|貼り付け|
 
 ---
 
 # 📚 今後の予定
 
-## Version 3.1
-
-- Magic Paint Command
-- AI Framework
-- AI Provider対応
-- AIによるCanvas API生成
-- AIによるThree.jsコード生成
-- AppCore配布方式改善
-
----
-
-## Version 4.0
-
-- AIアシスタント
-- AIアニメーション生成
+- AppCore配布方式改善（ES Modules化）
 - AI画像編集支援
-- AIによるMOD作成支援
 
 ---
 
