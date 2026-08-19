@@ -1,47 +1,26 @@
-function previewMotionPathPoints(s) {
-  if (!s.animPath || s.animPath.length < 2) return null;
-  const first = s.animPath[0];
-  const cleanPath = s.animPath.filter((p, idx, arr) => {
-    if (idx === 0) return true;
-
-    const prev = arr[idx - 1];
-
-    return Math.hypot(
-      p.x - prev.x,
-      p.y - prev.y
-    ) > 4;
-  });
-
-  const cornerPath = cleanPath.filter((p, idx, arr) => {
-    if (idx === 0 || idx === arr.length - 1) return true;
-
-    const a = arr[idx - 1];
-    const b = p;
-    const c = arr[idx + 1];
-
-    const dx1 = Math.sign(b.x - a.x);
-    const dy1 = Math.sign(b.y - a.y);
-
-    const dx2 = Math.sign(c.x - b.x);
-    const dy2 = Math.sign(c.y - b.y);
-
-    return dx1 !== dx2 || dy1 !== dy2;
-  });
-
-  const pts = cornerPath
-    .map(p => `{x:${Math.round(p.x)},y:${Math.round(p.y)}}`)
-    .join(', ');
-  const last = s.animPath[s.animPath.length - 1];
-  const tail = pts[pts.length - 1];
-  if (!tail || tail.x !== last.x || tail.y !== last.y) pts.push(last);
-  return pts.map(p => `{x:${Math.round(p.x - first.x)},y:${Math.round(p.y - first.y)}}`).join(', ');
-}
-
-
-function openPreview(download = false) {
+async function openPreview(download = false) {
   if (window.__jeModeHandlers?.[jeMode]?.preview) {
     const code = document.getElementById('je-code')?.value.trim() || '';
     window.__jeModeHandlers[jeMode].preview(code, download);
+    return;
+  }
+
+  // KFエンジン v2 の補間ロジック(interpolation.js)と、パス/アニメーション判定の
+  // 純粋処理(runtime.js)は、実ファイルのまま取得して書き出しHTMLに埋め込む。
+  // 手動コピーによる同期漏れを防ぐため、ロジックは常にこの1箇所だけに置く。
+  // （playback.js/keyframe.jsは本体専用の再生制御・UI処理を含むため対象外）
+  let interpSrc, runtimeSrc;
+  try {
+    const fetchSrc = path => fetch(path).then(r => {
+      if (!r.ok) throw new Error(path + ': HTTP ' + r.status);
+      return r.text();
+    });
+    [interpSrc, runtimeSrc] = await Promise.all([
+      fetchSrc('AppCore/animation/interpolation.js'),
+      fetchSrc('AppCore/animation/runtime.js')
+    ]);
+  } catch (e) {
+    toast('ti-alert-triangle', 'プレビュー生成に失敗しました（共有ロジックの取得エラー: ' + e.message + '）');
     return;
   }
 
@@ -139,6 +118,8 @@ function openPreview(download = false) {
   </div>
   <script>
   const data = ${JSON.stringify(payload)};
+  // runtime.js（本体と共有）が参照する totalDur を、Preview側の値で用意する。
+  const totalDur = data.totalDur;
   const canvas = document.getElementById('pv');
   const ctx = canvas.getContext('2d');
   const previewRenderers = {};
@@ -167,7 +148,8 @@ function openPreview(download = false) {
 
   function getCenter(s) {
     switch (s.type) {
-      case 'rect': return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+      case 'rect':
+      case 'text': return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
       case 'webgl-image': return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
       case 'circle': return { x: s.cx, y: s.cy };
       case 'triangle':
@@ -191,7 +173,8 @@ function openPreview(download = false) {
 
   function getBounds(s) {
     switch (s.type) {
-      case 'rect': return { x: s.x, y: s.y, w: s.w, h: s.h };
+      case 'rect':
+      case 'text': return { x: s.x, y: s.y, w: s.w, h: s.h };
       case 'webgl-image': return { x: s.x, y: s.y, w: s.w, h: s.h };
       case 'circle': return { x: s.cx - s.rx, y: s.cy - s.ry, w: s.rx * 2, h: s.ry * 2 };
       case 'triangle':
@@ -232,13 +215,11 @@ function openPreview(download = false) {
     }
   }
 
-  function getGroupMembers(groupId, includeHidden = false) {
-    if (!groupId) return [];
-    return data.shapes.filter(s => s.groupId === groupId && (includeHidden || !s.hidden));
-  }
+  // getGroupMembers / getGroupAnimationOwner は runtime.js の埋め込みで
+  // 提供される（本体と共有）。ここでは data.shapes を明示的に渡して呼ぶ。
 
   function getGroupBounds(groupId) {
-    const members = getGroupMembers(groupId);
+    const members = getGroupMembers(groupId, false, data.shapes);
     if (!members.length) return null;
 
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
@@ -253,145 +234,87 @@ function openPreview(download = false) {
     return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
   }
 
-  function shapeHasAnimation(s) {
-    if (!s) return false;
-    return Boolean(
-      (s.animPath && s.animPath.length > 1) ||
-      (s.keyframes && s.keyframes.length) ||
-      s.autoRotate
-    );
-  }
+  // ══ KFエンジン v2: 共有ランタイム ══════════════════════════════
+  // AppCore/animation/interpolation.js（EASINGS/applyEasing/sampleKeyframes等）と
+  // AppCore/animation/runtime.js（shapeHasAnimation/getGroupMembers/
+  // getGroupAnimationOwner/pathProgressKeyframes/getPathTimeRange/
+  // getPathProgressForTime/getPathPos/applyAnimationTransform/
+  // drawAnimatedShape）の実ソースをそのまま埋め込む。手動複製ではないため、
+  // 本体を変更すればここも自動的に追従する。
+  // runtime.js は totalDur というローカル変数がスコープ内にあることを前提にする。
+  // getGroupMembers/getGroupAnimationOwner の shapesRef 引数は、呼び出し側
+  // (drawPreviewAnimatedScene/getGroupBounds)で必ず data.shapes を明示的に渡す
+  // （本体のような bare な shapes 変数がPreview側には無いため）。
+  ${interpSrc}
 
-  function getGroupAnimationOwner(groupId) {
-    const members = getGroupMembers(groupId, true);
-    return (
-      members.find(s => s.groupAnimOwner && shapeHasAnimation(s)) ||
-      members.find(shapeHasAnimation) ||
-      members[0] ||
-      null
-    );
-  }
+  ${runtimeSrc}
 
-  // パスの「進み具合(pathProgress: 0〜1)」を持つKFだけを抜き出す
-  function pathProgressKeyframes(s) {
-    return (s?.keyframes || []).filter(k => Number.isFinite(Number(k.pathProgress)));
-  }
-
-  function getPathTimeRange(s) {
-    const kfs = pathProgressKeyframes(s);
-    let start = 0, end = data.totalDur;
-    if (kfs.length >= 2) {
-      const sorted = [...kfs].sort((a, b) => a.pathProgress - b.pathProgress);
-      start = sorted[0].t;
-      end = sorted[sorted.length - 1].t;
-    } else if (kfs.length === 1) {
-      if (kfs[0].pathProgress <= 0) start = kfs[0].t;
-      else if (kfs[0].pathProgress >= 1) end = kfs[0].t;
-    }
-    start = Math.max(0, Math.min(data.totalDur, start));
-    end = Math.max(0, Math.min(data.totalDur, end));
-    if (end <= start) {
-      if (start >= data.totalDur) start = Math.max(0, data.totalDur - 0.5);
-      end = Math.min(data.totalDur, start + 0.5);
-    }
-    if (end <= start) end = Math.max(start + 0.01, data.totalDur);
-    return { start, end };
-  }
-
-  function getPathProgressForTime(s, localTime, fallbackProgress) {
-    if (!s?.animPath || s.animPath.length < 2) return null;
-
-    const kfs = pathProgressKeyframes(s);
-    if (kfs.length >= 2) {
-      const sample = sampleKeyframes(kfs, localTime);
-      const p = Number(sample?.pathProgress);
-      if (Number.isFinite(p)) return Math.max(0, Math.min(1, p));
-    }
-
-    const range = getPathTimeRange(s);
-    if (localTime <= range.start) return 0;
-    if (localTime >= range.end) return 1;
-    return (localTime - range.start) / Math.max(0.001, range.end - range.start);
-  }
-
-  // ══ KFエンジン v2: 補間 + easing ══════════════════════════════
-  // AppCore/animation/interpolation.js と同じロジック。
+  // ── テキスト（Google Fonts）─────────────────────────────────────
+  // AppCore/canvas/shapes.js の ensureGoogleFont/wrapTextLines と同じロジック。
   // プレビューは独立したHTMLとして書き出す/新規タブで開くため、
   // <script src>で共有できず、ここに複製している。
-  // interpolation.js を変更したら、このブロックも合わせて更新すること。
-  const PREVIEW_EASINGS = {
-    linear: f => f,
-    easeIn: f => f * f,
-    easeOut: f => 1 - (1 - f) * (1 - f),
-    easeInOut: f => (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2)
-  };
-  function previewApplyEasing(name, f) {
-    const fn = PREVIEW_EASINGS[name] || PREVIEW_EASINGS.linear;
-    return fn(Math.max(0, Math.min(1, f)));
+  // ensureGoogleFont は本体では読み込み完了時に redraw() を呼ぶが、
+  // プレビューは常時 requestAnimationFrame(render) で描画し続けているため、
+  // 明示的な再描画呼び出しは不要（フォールバックフォント→本フォントは自然に切り替わる）。
+  const PREVIEW_GOOGLE_FONTS = [
+    'Noto Sans JP', 'Noto Serif JP', 'M PLUS Rounded 1c', 'Kosugi Maru', 'Shippori Mincho',
+    'Roboto', 'Poppins', 'Playfair Display', 'Pacifico', 'Bebas Neue'
+  ];
+  const _previewLoadedGoogleFonts = new Set();
+  function previewEnsureGoogleFont(family) {
+    if (!family || !PREVIEW_GOOGLE_FONTS.includes(family) || _previewLoadedGoogleFonts.has(family)) return;
+    _previewLoadedGoogleFonts.add(family);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=' +
+      encodeURIComponent(family).replace(/%20/g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(link);
   }
-  const PREVIEW_KF_NON_NUMERIC_KEYS = new Set(['t', 'easing', 'color']);
-  function previewNumericKeysOfKf(kf) {
-    return Object.keys(kf).filter(
-      k => !PREVIEW_KF_NON_NUMERIC_KEYS.has(k) && Number.isFinite(Number(kf[k]))
-    );
-  }
-  function sampleKeyframes(keyframes, t) {
-    if (!keyframes || !keyframes.length) return null;
-    const sorted = [...keyframes].sort((a, b) => a.t - b.t);
 
-    if (t <= sorted[0].t) return { ...sorted[0] };
-    const last = sorted[sorted.length - 1];
-    if (t >= last.t) return { ...last };
+  function wrapTextLines(text, fontFamily, fontSize, maxWidth) {
+    const w = Math.max(10, maxWidth);
+    ctx.save();
+    ctx.font = fontSize + 'px ' + (fontFamily || 'sans-serif');
 
-    let k0 = sorted[0], k1 = last;
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i].t <= t && t <= sorted[i + 1].t) {
-        k0 = sorted[i];
-        k1 = sorted[i + 1];
-        break;
+    const breakToken = tok => {
+      const out = [];
+      let cur = tok;
+      while (ctx.measureText(cur).width > w && cur.length > 1) {
+        let lo = 1;
+        while (lo < cur.length && ctx.measureText(cur.slice(0, lo + 1)).width <= w) lo++;
+        out.push(cur.slice(0, lo));
+        cur = cur.slice(lo);
       }
-    }
+      if (cur) out.push(cur);
+      return out;
+    };
 
-    const span = k1.t - k0.t;
-    const rawF = span > 0 ? (t - k0.t) / span : 1;
-    const f = previewApplyEasing(k0.easing, rawF);
-
-    const keys = new Set([...previewNumericKeysOfKf(k0), ...previewNumericKeysOfKf(k1)]);
-    const out = { t };
-    keys.forEach(key => {
-      const a = Number(k0[key]);
-      const b = Number(k1[key]);
-      if (Number.isFinite(a) && Number.isFinite(b)) out[key] = a + (b - a) * f;
-      else if (Number.isFinite(a)) out[key] = a;
-      else if (Number.isFinite(b)) out[key] = b;
+    const lines = [];
+    (text || '').split('\\n').forEach(paragraph => {
+      if (paragraph === '') { lines.push(''); return; }
+      const tokens = paragraph.split(/(\\s+)/).filter(t => t.length);
+      let cur = '';
+      tokens.forEach(tok => {
+        const test = cur + tok;
+        if (cur && ctx.measureText(test).width > w) {
+          lines.push(cur);
+          cur = '';
+          if (ctx.measureText(tok).width > w) {
+            const pieces = breakToken(tok);
+            cur = pieces.pop() || '';
+            lines.push(...pieces);
+          } else {
+            cur = tok.replace(/^\\s+/, '');
+          }
+        } else {
+          cur = test;
+        }
+      });
+      if (cur) lines.push(cur);
     });
-    out.color = k0.color ?? k1.color;
-    out.easing = k0.easing || 'linear';
-    return out;
-  }
 
-  function getPathPos(t, path) {
-    if (!path || path.length < 2) return null;
-    const segs = [];
-    let total = 0;
-    for (let i = 1; i < path.length; i++) {
-      const a = path[i - 1], b = path[i];
-      const len = Math.hypot(b.x - a.x, b.y - a.y);
-      if (len < 0.001) continue;
-      segs.push({ a, b, len });
-      total += len;
-    }
-    if (!segs.length) return path[0];
-
-    let d = Math.max(0, Math.min(1, t)) * total;
-    for (const seg of segs) {
-      if (d <= seg.len) {
-        const f = d / seg.len;
-        return { x: seg.a.x + (seg.b.x - seg.a.x) * f, y: seg.a.y + (seg.b.y - seg.a.y) * f };
-      }
-      d -= seg.len;
-    }
-    return path[path.length - 1];
+    ctx.restore();
+    return lines.length ? lines : [''];
   }
 
   function drawShape(s) {
@@ -429,7 +352,8 @@ function openPreview(download = false) {
       case 'rect':
         ctx.translate(s.x + s.w/2, s.y + s.h/2);
         ctx.rotate((s.rot || 0) * Math.PI / 180);
-        roundRect(-s.w/2, -s.h/2, s.w, s.h, s.rr || 0);
+        ctx.beginPath();
+        ctx.roundRect(-s.w/2, -s.h/2, s.w, s.h, s.rr || 0);
         if (s.fill) ctx.fill();
         ctx.stroke();
         break;
@@ -490,6 +414,23 @@ function openPreview(download = false) {
 
         break;
       }
+      case 'text': {
+        const fam = s.fontFamily || 'sans-serif';
+        const fs = s.fontSize || 24;
+        const lh = Math.round(fs * 1.3);
+        const pad = 4;
+        previewEnsureGoogleFont(fam);
+        ctx.translate(s.x + s.w / 2, s.y + s.h / 2);
+        ctx.rotate((s.rot || 0) * Math.PI / 180);
+        ctx.translate(-s.w / 2, -s.h / 2);
+        ctx.font = fs + 'px ' + fam;
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = s.color || '#fff';
+        const lines = wrapTextLines(s.text || '', fam, fs, s.w - pad * 2);
+        lines.forEach((line, i) => ctx.fillText(line, pad, pad + i * lh));
+        break;
+      }
 
     default: {
       const renderer = previewRenderers[s.type];
@@ -505,104 +446,44 @@ function openPreview(download = false) {
 
   }
 
-  function roundRect(x, y, w, h, r) {
-    r = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.lineTo(x+w-r,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r);
-    ctx.quadraticCurveTo(x,y,x+r,y);
-    ctx.closePath();
-  }
+  // 角丸矩形は本体(renderer.js)と同じく native の ctx.roundRect() を使う
+  // （手書きの quadraticCurveTo実装は撤去）。
 
-  function applyPreviewAnimationTransform(owner, center, localTime, progress) {
-    const kfP = sampleKeyframes(owner.keyframes, localTime);
-    const pathProgress = getPathProgressForTime(owner, localTime, progress);
-    const pos = getPathPos(pathProgress ?? progress, owner.animPath || null);
-    const pathDx = pos && owner.animPath && owner.animPath[0] ? pos.x - owner.animPath[0].x : 0;
-    const pathDy = pos && owner.animPath && owner.animPath[0] ? pos.y - owner.animPath[0].y : 0;
-    const useKfPosition = !(owner.animPath && owner.animPath.length > 1);
-    const kfDx = useKfPosition && kfP && Number.isFinite(kfP.x) ? kfP.x - center.x : 0;
-    const kfDy = useKfPosition && kfP && Number.isFinite(kfP.y) ? kfP.y - center.y : 0;
-    const dx = pathDx + kfDx;
-    const dy = pathDy + kfDy;
-
-    if (dx || dy) {
-      ctx.translate(dx, dy);
-    }
-
-    const kfRot = kfP && Number.isFinite(Number(kfP.rotation)) ? Number(kfP.rotation) : null;
-    const kfScaleX = kfP && Number.isFinite(Number(kfP.scaleX)) ? Number(kfP.scaleX) : null;
-    const kfScaleY = kfP && Number.isFinite(Number(kfP.scaleY)) ? Number(kfP.scaleY) : null;
-
-    if (kfRot !== null || kfScaleX !== null || kfScaleY !== null) {
-      ctx.translate(center.x, center.y);
-      if (kfRot !== null) {
-        ctx.rotate(((kfRot - (owner.rot || 0)) * Math.PI) / 180);
-      }
-      if (kfScaleX !== null || kfScaleY !== null) {
-        const baseSx = owner.scaleX || 1, baseSy = owner.scaleY || 1;
-        ctx.scale((kfScaleX ?? baseSx) / baseSx, (kfScaleY ?? baseSy) / baseSy);
-      }
-      ctx.translate(-center.x, -center.y);
-    }
-
-    if (owner.autoRotate) {
-      ctx.translate(center.x, center.y);
-      ctx.rotate(owner.autoRotate * localTime * Math.PI / 180);
-      ctx.translate(-center.x, -center.y);
-    }
-
-    return kfP;
-  }
-
-  function drawPreviewAnimatedShape(s, kfP = null) {
-    if (!kfP) {
-      drawShape(s);
-      return;
-    }
-
-    const kfOpa = Number(kfP.opacity);
-    drawShape({
-      ...s,
-      opa: Number.isFinite(kfOpa) ? kfOpa : s.opa,
-      color: kfP.color || s.color
-    });
-  }
+  // applyAnimationTransform / drawAnimatedShape は runtime.js の埋め込みで
+  // 提供される（本体と共有）。ここでは data.shapes を辿るPreview固有の
+  // 走査(drawPreviewAnimatedScene)だけを持つ。
 
   function drawPreviewAnimatedScene(localTime, progress) {
     const drawnGroups = new Set();
 
-    for (const raw of data.shapes) {
-      const s = JSON.parse(JSON.stringify(raw));
+    // 本体の drawAnimatedScene と同様、data.shapes を直接読む。
+    // applyAnimationTransform/drawAnimatedShape/getGroupMembers等は
+    // 図形オブジェクトを一切変更しない(読み取り専用)ため、
+    // 毎フレームのクローンは不要。
+    for (const s of data.shapes) {
       if (s.hidden) continue;
 
       if (s.groupId) {
         if (drawnGroups.has(s.groupId)) continue;
         drawnGroups.add(s.groupId);
 
-        const members = getGroupMembers(s.groupId).map(m => JSON.parse(JSON.stringify(m)));
-        const owner = getGroupAnimationOwner(s.groupId);
+        const members = getGroupMembers(s.groupId, false, data.shapes);
+        const owner = getGroupAnimationOwner(s.groupId, true, data.shapes);
         const b = getGroupBounds(s.groupId);
         if (!members.length || !owner || !b) continue;
 
         const center = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
         ctx.save();
-        const kfP = applyPreviewAnimationTransform(owner, center, localTime, progress);
-        members.forEach(member => drawPreviewAnimatedShape(member, kfP));
+        const kfP = applyAnimationTransform(owner, center, localTime, progress);
+        members.forEach(member => drawAnimatedShape(member, kfP));
         ctx.restore();
         continue;
       }
 
       const center = getCenter(s);
       ctx.save();
-      const kfP = applyPreviewAnimationTransform(s, center, localTime, progress);
-      drawPreviewAnimatedShape(s, kfP);
+      const kfP = applyAnimationTransform(s, center, localTime, progress);
+      drawAnimatedShape(s, kfP);
       ctx.restore();
     }
   }
