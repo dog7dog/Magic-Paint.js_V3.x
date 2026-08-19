@@ -1,66 +1,11 @@
 // ══════════════════════════════════════════════════════════════
-// KFエンジン v2: 再生ループ + フレーム描画
-//   「現在時刻→KF補間→トランスフォーム適用→描画」の一本化された
-//   パイプラインをここに集約する。データ操作は keyframe.js、
-//   補間の中身は interpolation.js が担当。
+// KFエンジン v2: 再生ループ + フレーム描画（本体専用）
+//   再生ボタン・requestAnimationFrame管理・タイムライン同期など、
+//   本体だけが持つ「再生制御」をここに置く。
+//   「現在時刻→KF補間→トランスフォーム適用→描画」という
+//   Previewとも共有できる純粋な処理そのものは runtime.js に、
+//   データ操作は keyframe.js、補間の中身は interpolation.js が担当。
 // ══════════════════════════════════════════════════════════════
-
-function applyAnimationTransform(owner, center, cur, progress) {
-  const kfP = sampleKeyframes(owner.keyframes, cur);
-  const pathProgress = getPathProgressForTime(owner, cur, progress);
-  const pos = getPathPos(pathProgress ?? progress, owner.animPath || null);
-  const pathDx = pos && owner.animPath && owner.animPath[0] ? pos.x - owner.animPath[0].x : 0;
-  const pathDy = pos && owner.animPath && owner.animPath[0] ? pos.y - owner.animPath[0].y : 0;
-  const useKfPosition = !(owner.animPath && owner.animPath.length > 1);
-  const kfDx = useKfPosition && kfP && Number.isFinite(kfP.x) ? kfP.x - center.x : 0;
-  const kfDy = useKfPosition && kfP && Number.isFinite(kfP.y) ? kfP.y - center.y : 0;
-  const dx = pathDx + kfDx;
-  const dy = pathDy + kfDy;
-
-  if (dx || dy) {
-    ctx.translate(dx, dy);
-  }
-
-  const kfRot = kfP && Number.isFinite(Number(kfP.rotation)) ? Number(kfP.rotation) : null;
-  const kfScaleX = kfP && Number.isFinite(Number(kfP.scaleX)) ? Number(kfP.scaleX) : null;
-  const kfScaleY = kfP && Number.isFinite(Number(kfP.scaleY)) ? Number(kfP.scaleY) : null;
-
-  if (kfRot !== null || kfScaleX !== null || kfScaleY !== null) {
-    ctx.translate(center.x, center.y);
-    if (kfRot !== null) {
-      ctx.rotate(((kfRot - (owner.rot || 0)) * Math.PI) / 180);
-    }
-    if (kfScaleX !== null || kfScaleY !== null) {
-      // 図形自身が持つ静的な scaleX/scaleY(三角形/多角形など)と二重に
-      // 掛からないよう、KF値との「比」だけを追加で適用する
-      const baseSx = owner.scaleX || 1, baseSy = owner.scaleY || 1;
-      ctx.scale((kfScaleX ?? baseSx) / baseSx, (kfScaleY ?? baseSy) / baseSy);
-    }
-    ctx.translate(-center.x, -center.y);
-  }
-
-  if (owner.autoRotate) {
-    ctx.translate(center.x, center.y);
-    ctx.rotate(owner.autoRotate * cur * Math.PI / 180);
-    ctx.translate(-center.x, -center.y);
-  }
-
-  return kfP;
-}
-
-function drawAnimatedShape(s, kfP = null) {
-  if (!kfP) {
-    drawShape(s, ctx);
-    return;
-  }
-
-  const kfOpa = Number(kfP.opacity);
-  drawShape({
-    ...s,
-    opa: Number.isFinite(kfOpa) ? kfOpa : s.opa,
-    color: kfP.color || s.color
-  }, ctx);
-}
 
 function drawAnimatedScene(cur, progress) {
   const drawnGroups = new Set();
@@ -92,36 +37,7 @@ function drawAnimatedScene(cur, progress) {
   });
 }
 
-function getPathPos(t, path) {
-  if (!path || path.length < 2) return null;
-
-  // 座標系は変えない。保存された animPath をそのまま使う。
-  // 点の番号ではなく線の長さで補間するだけにする。
-  const segs = [];
-  let total = 0;
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1];
-    const b = path[i];
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 0.001) continue;
-    segs.push({ a, b, len });
-    total += len;
-  }
-  if (!segs.length) return path[0];
-
-  let d = Math.max(0, Math.min(1, t)) * total;
-  for (const seg of segs) {
-    if (d <= seg.len) {
-      const f = d / seg.len;
-      return {
-        x: seg.a.x + (seg.b.x - seg.a.x) * f,
-        y: seg.a.y + (seg.b.y - seg.a.y) * f
-      };
-    }
-    d -= seg.len;
-  }
-  return path[path.length - 1];
-}
+// getPathPos は AppCore/animation/runtime.js へ移動（本体・Preview共有）。
 
 function renderAnimationCanvasFrame(progress) {
   const cur = progress * totalDur;
@@ -204,17 +120,10 @@ function stopAnim() {
 
 function toggleAnim() { animating ? stopAnim() : startAnim(); }
 
-// ── 物理演算（削除済み）──────────────────────────────────
-function togglePhysics() {
-  setStatus('物理演算は削除済みです');
-}
-function startPhysics() {
-  setStatus('物理演算は削除済みです');
-}
+// mods/cannon_physics MOD が physicsRunning フラグの読み書きで本体と排他制御している。
+// project.js の新規プロジェクト作成時に stopAnim() とセットで呼ばれ、物理演算中でも
+// 確実に状態をリセットするための後始末用。
 function stopPhysics() {
   physicsRunning = false;
   redraw();
-}
-function applyFrame(objects) {
-  // 物理演算なし
 }
