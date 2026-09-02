@@ -107,7 +107,17 @@ rulerCv.addEventListener('click', e => {
 document.getElementById('tl-rew').addEventListener('click', () => {
   stopAnim(); animT = 0; renderAnimationCanvasFrame(animT); drawTimeline();
 });
-document.getElementById('tl-play').addEventListener('click', toggleAnim);
+// テキストエディタに手書きJS（AI生成コード等）が入っている場合は、
+// メインの再生ボタンでもそれを実行する（editor.js の je-run-btn と同じ判定・経路）。
+// 通常のKFアニメーション（自動生成コードのまま/未編集）の場合は
+// 従来通り toggleAnim() の一時停止→再開に任せる。
+document.getElementById('tl-play').addEventListener('click', () => {
+  if (typeof shouldRunEditorAsCanvas === 'function' && !shouldRunEditorAsCanvas()) {
+    runEditorCode();
+  } else {
+    toggleAnim();
+  }
+});
 document.getElementById('tl-fwd').addEventListener('click', () => {
   animT = Math.min(1, animT + 1 / totalDur / 30); renderAnimationCanvasFrame(animT); drawTimeline();
 });
